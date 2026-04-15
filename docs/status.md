@@ -3,9 +3,9 @@
 > **本文档是 Dev Agent 和 QA Agent 协作的唯一状态源。**
 > 两个 Agent 在每个任务的生命周期中更新本文档，确保端到端可追溯。
 
-> 版本: v1.1
+> 版本: v1.2
 > 创建日期: 2026-04-15
-> 配套文档: [requirements.md](requirements.md) v0.9 · [tasks.md](tasks.md) v1.2
+> 配套文档: [requirements.md](requirements.md) v0.9 · [tasks.md](tasks.md) v1.3
 
 ## 0. 当前阶段说明（v1.1 新增）
 
@@ -334,7 +334,8 @@ QA 验证报告存放于 `qa-reports/` 目录，命名规则：`T{id}.md`
 
 | 约定 | 说明 |
 |------|------|
-| 分支 | `main` 为稳定分支；开发在 `dev` 分支上进行；每个里程碑完成后合入 `main` |
+| **初始化（一次性）** | 在 `main` 上做第一次初始 commit，message：`[init] 项目文档与脚手架初始化`，将现有文件（docs/、脚手架）纳入版本控制；然后从 `main` 切出 `dev` 分支：`git checkout -b dev` |
+| 分支 | `main` 为稳定分支；日常开发在 `dev` 分支；每个里程碑完成后将 `dev` merge 到 `main` 并打 tag；**不在 main 上直接提交任务代码** |
 | Commit 格式 | `[T{id}] {任务标题}` — 如 `[T1.2] YAML 读写与校验` |
 | 原子性 | 每个任务对应一个 commit（除非 retry 需要追加 fix commit：`[T{id}] fix: {修复内容}`） |
 | Tag | 每个里程碑完成后打 tag：`m0-done`、`m1-done`、… |

@@ -1,13 +1,17 @@
 # LWB UI Editor — 任务拆分
 
-> 版本: v1.2
+> 版本: v1.3
 > 日期: 2026-04-15
 > 配套需求文档: [requirements.md](requirements.md) v0.9
 
 ## 修订记录
 
+- **v1.3 (2026-04-15)**：
+  - T0.4 / T0.5 明确 Dev 自测门槛（脚本提交 + 结论报告；引擎运行由人工负责），标注测试用例为"人工执行"
+  - T0.5 明确提交时 D1 决策字段必须从"待定"改为"已定"
+  - T5.3 打包交付物改为 README 手动步骤为主，GitHub Actions 作可选升级（仓库推到 GitHub 后再加）
 - **v1.2 (2026-04-15)**：
-  - M1 任务正文按编号顺序重排为 T1.11 → T1.12 → T1.13 → T1.14（与依赖关系和 status.md 表格一致）
+  - M1 任务正文按编号顺序重排为 T1.11 → T1.12 → T1.13 → T1.14
   - T1.14 取色器/资源选择器明确"关闭即提交，Esc 放弃"统一规则，新增点外部用例
   - 全局规则补充 tsc 适用范围、< 15MB 体积指标性质
   - 新增"测试范围说明"小节，标注 Unity/Unreal 导出链路当前暂缓 QA 验证
@@ -99,6 +103,8 @@
 
 ### T0.4 Unity C# Editor 脚本 POC（M0.4-0.7）
 
+> **QA 测试暂缓** · **Dev 自测说明**：Dev 无法在 CI 中自动运行 Unity 2022，`dev_done` 门槛为"脚本和 README 已提交，`poc/unity/README.md` 包含预期结果描述"。实际引擎运行验证由人工负责（见 status.md 第 0 节）。
+
 - **依赖**：无（纯 Unity 工程）
 - **需求引用**：2.12.1, 2.12.3, 2.12.4, 2.12.5
 - **交付物**：
@@ -107,8 +113,8 @@
   - 创建：Canvas（ScreenSpaceOverlay + CanvasScaler 1920×1080）→ Image → TextMeshPro → Button → Slider（含完整层级）→ Toggle → InputField
   - 导入 PNG 并自动设置 TextureImporter 为 Sprite
   - Pivot = center 的 Image 放置在 (100, 200)，位置在 Scene 中肉眼验证正确
-  - `poc/unity/README.md` 步骤说明
-- **测试用例**：
+  - `poc/unity/README.md`：步骤说明 + 预期截图描述（替代自测用例）
+- **测试用例（人工执行）**：
   1. 在空 Unity 2022 项目中运行脚本，Prefab 在 `Assets/UI/Poc/` 下生成
   2. 双击 Prefab 进入预制件编辑，Canvas 包含 Image/Text/Button/Slider/Toggle/InputField 6 种控件
   3. Slider 展开后包含 Background、Fill Area>Fill、Handle Slide Area>Handle 层级
@@ -117,6 +123,8 @@
   6. TextMeshProUGUI 正确显示中文（需要带中文的 TMP Font Asset）
 
 ### T0.5 Unreal Python 脚本 POC（M0.8-0.9）⚠️ 关键风险点
+
+> **QA 测试暂缓** · **Dev 自测说明**：Dev 无法在 CI 中自动运行 Unreal 5，`dev_done` 门槛为"脚本已提交 + `docs/poc-reports/T0.5-unreal-python.md` 中**结论已填写**（D1 决策字段必须有明确结论）"。实际引擎运行验证由人工负责。
 
 - **依赖**：无（纯 Unreal 工程）
 - **需求引用**：2.12.2, 2.12.3, 2.12.4
@@ -127,7 +135,8 @@
   - `docs/poc-reports/T0.5-unreal-python.md` 结论报告，**明确标注**：
     - Python API 是否足以完成生产需求
     - 若不足，推荐备选方案（C++ 导出 / JSON+插件）
-- **测试用例**：
+    - **此报告即 status.md D1 决策的填写依据，提交时 D1 状态必须从"待定"改为"已定"**
+- **测试用例（人工执行）**：
   1. 空 Unreal 5 项目中启用 Python Editor Script Plugin 和 Editor Scripting Utilities 插件
   2. 运行脚本后生成 Widget Blueprint，双击打开 UMG 编辑器，控件层级与预期一致
   3. CanvasPanel 中的 Image 在 Designer 视图中位于 (100, 200) 处，尺寸 200×200
@@ -757,14 +766,16 @@
 - **依赖**：M4
 - **需求引用**：5.非功能
 - **交付物**：
-  - Github Actions workflow（或 README 打包步骤）
-  - Windows .msi 和 portable .exe 两种产物
-  - 应用图标 + 版本号
+  - `README.md` 中"打包步骤"章节：记录 `pnpm tauri build` 完整命令、签名配置、产物路径
+  - Windows `.msi`（安装器）和 portable `.exe`（免安装）两种产物构建方式说明
+  - 应用图标（`src-tauri/icons/`）+ `tauri.conf.json` 版本号
+  - *(可选升级)* 若仓库已推送到 GitHub，可额外提供 `.github/workflows/build.yml`（在 Windows runner 上 `pnpm tauri build`）；当前阶段不作为必选交付物
 - **测试用例**：
-  1. 新 Windows 10 虚拟机安装 .msi 后首次启动 < 3s
-  2. portable .exe 不需安装直接运行
-  3. 安装包 < 15MB
-  4. 完全离线环境（禁用网络）所有功能正常
+  1. 按 README 打包步骤在干净 Windows 10 环境执行 `pnpm tauri build`，生成 `.msi` 和 portable `.exe`
+  2. 新 Windows 10 虚拟机安装 `.msi` 后首次启动 < 3s
+  3. portable `.exe` 不需安装直接双击运行
+  4. 安装包体积记录到文档（< 15MB 为优化目标，< 50MB 为硬门槛，见全局测试范围说明）
+  5. 完全离线环境（禁用网络）所有功能正常
 
 ---
 
