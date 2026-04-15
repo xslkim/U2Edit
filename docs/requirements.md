@@ -1,8 +1,8 @@
 # LWB UI Editor — 需求文档
 
-> 版本: v0.6  
+> 版本: v0.7  
 > 日期: 2026-04-15  
-> 状态: 草案
+> 状态: 草案（已根据 review 修订）
 
 ---
 
@@ -74,6 +74,7 @@
 | 不做自动保存 | AI Agent 监听文件，频繁写入会触发大量 reload 提示，故不做自动保存 |
 | 单界面 | 一个项目 = 一个目录 = 一个 UI 界面，不支持多页面 |
 | 文件监听 | 监听 `project.yaml` 的外部变更（如 AI Agent 修改），弹出对话框提示用户处理（见下方） |
+| 监听防抖 | 外部变更在用户正在进行连续操作（拖拽、resize、属性输入框聚焦）时延后提示，待操作结束后再弹对话框，避免打断操作。多次连续变更合并为一次提示 |
 
 **文件监听冲突处理：**
 
@@ -88,7 +89,7 @@
 | 固定分辨率画布 | 按项目设定的分辨率显示，不做自适应/响应式 |
 | 画布缩放 | 鼠标滚轮缩放，以鼠标指针位置为缩放中心。缩放范围 10% ~ 500% |
 | 画布平移 | 中键拖拽 或 空格+左键拖拽 |
-| 缩放快捷键 | Ctrl+0 重置为 100%，Ctrl+1 缩放到适合窗口（Fit to Window） |
+| 缩放快捷键 | Ctrl+0 重置为 100%，Ctrl+1 缩放到适合窗口（Fit to Window，画布四周保留约 5% 留白后取最小缩放比） |
 | 画布外区域 | 画布外显示深灰色背景，与画布白色区域形成对比 |
 | 网格与参考线 | 可选显示对齐网格（Ctrl+G 切换） |
 | 实时预览 | 编辑器内所见即所得，元素按实际尺寸和位置渲染 |
@@ -132,7 +133,9 @@
 
 #### 2.3.3 Button（按钮）
 
-复合控件，由容器 + 可选 Image 背景 + 可选 Text 标签组成。`background` 和 `label` 是 Button 的固有组成部分，`children` 是额外嵌套在按钮内的子节点。
+复合控件，由容器 + 可选 Image 背景 + 可选 Text 标签组成。`background` 和 `label` 是 Button 的固有组成部分（作为属性存在，**不在节点树中显示为子项**，仅在属性面板中编辑），`children` 是额外嵌套在按钮内的子节点（在节点树中显示）。
+
+> Panel 的 `background` 同样作为属性存在，不显示为节点树子项。
 
 | 属性 | 类型 | 说明 |
 |------|------|------|
@@ -176,7 +179,7 @@
 |------|------|------|
 | background | object? | 背景图（可选），含 `assetId` 和可选 `tint` |
 | placeholder | object? | 占位文字（可选），含 `content`、`fontSize`、`color`、`textAlign` |
-| text | object? | 输入文字样式（可选），含 `fontSize`、`color`、`textAlign` |
+| text | object? | 输入文字样式（可选），含 `content`（默认输入值，可空）、`fontSize`、`color`、`textAlign` |
 
 ### 2.4 公共属性（所有节点共有）
 
@@ -190,8 +193,8 @@
 | width | number | 宽度（px） |
 | height | number | 高度（px） |
 | pivot | enum | 节点自身的参考原点（见 2.5） |
-| visible | boolean | 是否可见，默认 `true` |
-| opacity | number | 不透明度，0.0 - 1.0，默认 `1.0` |
+| visible | boolean | 是否可见，默认 `true`。`false` 时节点完全不渲染、不参与点击命中、不出现在导出中（但仍保留在 YAML 中） |
+| opacity | number | 不透明度，0.0 - 1.0，默认 `1.0`。仅影响视觉渲染，不影响点击命中。**不向子节点继承传递** |
 
 ### 2.5 布局系统
 
@@ -280,7 +283,7 @@ Pivot 影响的是节点自身的参考原点——例如 `pivot: center` 表示
 | 多选拖拽 | 拖任意一个选中节点，整组一起移动，保持相对位置 |
 | 拖出父容器 | 允许溢出（游戏 UI 常见需求） |
 | 拖到另一个 Panel 上 | 不自动改变父子关系（仅在节点树中拖拽才改变父子关系，避免误操作） |
-| 对齐吸附 | 拖拽时显示对齐参考线（吸附到同级节点边缘/中心），吸附阈值 5px |
+| 对齐吸附 | 拖拽时显示对齐参考线（吸附到同级节点边缘/中心），吸附阈值 **5 屏幕像素**（不随画布缩放变化） |
 
 #### 2.6.4 缩放（Resize）
 
@@ -298,13 +301,21 @@ Pivot 影响的是节点自身的参考原点——例如 `pivot: center` 表示
 |------|--------|------|
 | 复制 | Ctrl+C | 复制选中节点（含子节点） |
 | 粘贴 | Ctrl+V | 粘贴到当前选中容器下，位置偏移 (10, 10) 避免重叠，自动生成新 id |
-| 原地复制 | Ctrl+D | 等同于 Ctrl+C 后立即 Ctrl+V，快速复制 |
-| 全选 | Ctrl+A | 选中当前 root_panel 下所有直接子节点（不递归选中嵌套子节点） |
+| 原地复制 | Ctrl+D | 快速复制选中节点到同一父容器下，**位置偏移 (10, 10)**（与 Ctrl+V 行为一致），自动生成新 id |
+| 全选 | Ctrl+A | 选中**当前容器**下所有直接子节点（不递归）。当前容器定义：若当前有选中节点，取其父节点；若无选中，取 root_panel |
 | 删除 | Delete | 删除选中节点（含子节点） |
-| 撤销 | Ctrl+Z | 至少 50 步历史 |
+| 撤销 | Ctrl+Z | 至少 50 步历史；超出上限时丢弃最早记录 |
 | 重做 | Ctrl+Shift+Z | — |
+
+**撤销重做的颗粒度规则：**
+
+- 拖拽移动 / Resize：**操作完成时（鼠标松开）** 入栈一次，不按帧入栈
+- 属性输入框：**失焦或回车时** 入栈一次，连续输入合并
+- 拖拽 label 调值：松开鼠标时入栈一次
+- 锁定 / 解锁、节点树折叠状态、画布缩放/平移：**不入栈**（纯编辑器视图状态）
+- 文件保存：不入栈，但保存后栈不清空（允许保存后继续撤销）
 | 层级调整 | 右键菜单 | 上移/下移/置顶/置底（调整 children 数组位置） |
-| 双击 Text | — | 进入文本内联编辑模式，直接在画布上修改文字内容。按 Enter 或点击外部确认 |
+| 双击 Text | — | 进入文本内联编辑模式，直接在画布上修改文字内容。按 Enter 或点击外部确认。**需支持中文 IME 输入**（编辑期间组合字符不触发撤销入栈，确认后整体入栈一次） |
 
 #### 2.6.6 右键菜单
 
@@ -323,7 +334,7 @@ Pivot 影响的是节点自身的参考原点——例如 `pivot: center` 表示
 |------|------|
 | 导入 | 面板顶部"导入"按钮 → 打开文件选择对话框（支持多选 png/jpg）→ 复制到 `assets/` 目录 → 自动添加到 YAML 的 `assets` 列表 |
 | 重名处理 | 导入时文件名已存在，提示覆盖/重命名/取消 |
-| 资源列表 | 缩略图网格显示，鼠标悬停显示文件名和原始尺寸 |
+| 资源列表 | 缩略图网格显示（缩略图 64×64 px，保持纵横比居中），鼠标悬停显示文件名和原始尺寸 |
 | 搜索过滤 | 面板顶部搜索框，按文件名过滤 |
 | 拖入画布 | 从资源列表拖拽图片到画布，松手位置作为节点 (x, y)，默认 width/height 等于图片原始尺寸，pivot 默认 topLeft |
 | 删除资源 | 右键 → 删除。如果有节点正在引用该资源，弹出警告列出引用节点，确认后删除 |
@@ -353,6 +364,7 @@ Pivot 影响的是节点自身的参考原点——例如 `pivot: center` 表示
 | 拖拽排序 | 拖到节点之间 = 调整同级顺序（z-order）；拖到 Panel/Button 上 = 变为其子节点 |
 | 拖拽限制 | 不允许拖入非容器节点下；不允许超过 6 层嵌套限制（超限时拒绝并 tooltip 提示） |
 | 双击重命名 | 双击节点名称进入编辑模式，修改 `name` 属性 |
+| 节点搜索 | 节点树面板顶部搜索框，按 `name` 或 `id` 实时过滤；命中节点高亮，路径上的父节点自动展开；空查询时恢复完整树 |
 | 右键菜单 | 复制 / 粘贴 / 删除 / 上移 / 下移 / 置顶 / 置底 |
 
 > **锁定状态不持久化到 YAML**——锁定是纯编辑器状态，不写入数据文件。
@@ -397,7 +409,8 @@ Pivot 影响的是节点自身的参考原点——例如 `pivot: center` 表示
 | 场景 | 行为 |
 |------|------|
 | 打开损坏的 YAML | 弹出错误对话框，显示解析错误信息和行号，不加载文件 |
-| 低版本 Schema | 自动升级到当前版本，弹出提示告知用户 |
+| 低版本 Schema | 按版本号逐级执行升级脚本（v1→v2→…→当前），升级在内存中完成；**不自动写回磁盘**，需用户触发保存才会落盘。升级后弹提示"文件已从 vN 升级到 vM，保存后将转换为新格式" |
+| 高版本 Schema | 遇到比编辑器更新的 schemaVersion 时拒绝加载，弹出"请升级编辑器版本"提示 |
 | 重复 id | 保存时校验，弹出错误列表指出哪些节点 id 重复，阻止保存直到修正 |
 | 资源文件丢失 | 画布上显示红色占位矩形 + "Missing: xxx.png" 文字提示 |
 | assetId 引用无效 | 属性面板中 assetId 字段标红，画布上显示缺失占位 |
@@ -564,6 +577,36 @@ assets:
     width: 64
     height: 64
 
+  - id: "panel_bg"
+    path: "assets/panel_bg.png"
+    width: 500
+    height: 300
+
+  - id: "slider_track"
+    path: "assets/slider_track.png"
+    width: 400
+    height: 10
+  - id: "slider_fill"
+    path: "assets/slider_fill.png"
+    width: 400
+    height: 10
+  - id: "slider_thumb"
+    path: "assets/slider_thumb.png"
+    width: 20
+    height: 40
+  - id: "toggle_bg"
+    path: "assets/toggle_bg.png"
+    width: 40
+    height: 40
+  - id: "toggle_check"
+    path: "assets/toggle_check.png"
+    width: 32
+    height: 32
+  - id: "input_bg"
+    path: "assets/input_bg.png"
+    width: 400
+    height: 50
+
 # --- 节点树（children 数组顺序 = 渲染顺序，靠后的在上层）---
 nodes:
   - id: "root_panel"
@@ -692,7 +735,8 @@ nodes:
 
 # --- 导出配置 ---
 export:
-  sourceAssetPath: ""                       # 编辑器项目 assets 的绝对路径（导出时自动填充）
+  # sourceAssetPath 在导出运行时由编辑器注入当前项目 assets 的绝对路径，不写回 YAML，
+  # 避免项目目录移动后路径失效。
   unity:
     assetRootPath: "Assets/UI/MainMenu"     # Unity 项目内资源根路径
     defaultFont: "Assets/Fonts/Default.asset"  # TMP Font Asset 路径
@@ -868,6 +912,8 @@ lwb-ui-editor/
 | 0.7 | Unity 坐标/Pivot 映射验证 | 验证 Y 轴取反和 Pivot 映射 | 编辑器坐标 (100, 200) pivot=center 在 Unity 中位置正确 |
 | 0.8 | **Unreal Python 脚本 POC** | **验证 UMG Python API 可行性（最大风险点）** | 用 Python 创建 Widget Blueprint + CanvasPanel + Image + TextBlock + Button |
 | 0.9 | Unreal CanvasPanel Slot POC | 验证定位模型 | set_position/set_size/set_alignment/set_auto_size(False) 均可用 |
+| 0.10 | Konva.js 画布性能 POC | 验证 300 节点下交互流畅度 | 生成 300 个随机节点，拖拽/缩放/平移帧率 ≥ 55fps |
+| 0.11 | 中文 IME 输入验证 | Windows 下中文输入法在 Canvas 内联编辑、属性输入框中正常工作 | 使用微软拼音输入中文，组合字符不误触快捷键，确认后文本正确 |
 
 > **M0.8 是整个项目的关键决策点。** 如果 Unreal Python API 无法满足需求，
 > 需在此阶段决定切换到备选方案（C++ 代码导出 或 JSON + C++ Editor 插件），
