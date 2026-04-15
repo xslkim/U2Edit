@@ -1,8 +1,8 @@
 # LWB UI Editor — 任务拆分
 
-> 版本: v1.0
+> 版本: v1.1
 > 日期: 2026-04-15
-> 配套需求文档: [requirements.md](requirements.md) v0.7
+> 配套需求文档: [requirements.md](requirements.md) v0.8
 
 ## 使用说明
 
@@ -48,7 +48,7 @@
   3. 修改 `App.vue` 中的文字，窗口内容在 2 秒内热更新
   4. 执行 `pnpm tauri build`，在 `src-tauri/target/release/bundle/` 下生成 `.msi` 或 `.exe` 安装包，体积 < 15MB
 
-### T0.2 文件系统 & 对话框能力验证
+### T0.2 文件系统 & 对话框 & 窗口关闭拦截验证
 
 - **依赖**：T0.1
 - **需求引用**：2.1, 4.2
@@ -57,11 +57,15 @@
   - `src-tauri/tauri.conf.json` / `capabilities/` 配置文件读写权限
   - 临时 UI 按钮："选择目录"、"读 YAML"、"写 YAML"
   - `src/core/fileService.ts` 提供 `pickDirectory()`、`readText(path)`、`writeText(path, content)`、`exists(path)`
+  - **窗口关闭拦截 POC**：在 `src/core/windowGuard.ts` 中使用 Tauri 2 的 `onCloseRequested` 拦截关闭事件；实现一个全局 dirty 标志，dirty 为 true 时阻止关闭并弹确认对话框
 - **测试用例**：
   1. 点击"选择目录"，弹出原生目录选择对话框，选中后返回绝对路径
   2. 在项目目录写入 `test.yaml`（含中文内容），重新读取应完全一致（验证 UTF-8）
   3. 读取不存在的文件时 `exists()` 返回 false，`readText` 抛出可捕获的错误
   4. 路径包含空格（如 `C:\Users\张 三\test`）时读写正常
+  5. 将 dirty 设为 true 后点击窗口 X，弹出确认对话框；点"取消"窗口保持打开；点"确认"窗口关闭
+  6. dirty=false 时点 X 窗口直接关闭，不弹对话框
+  7. Alt+F4 与标题栏 X 行为一致
 
 ### T0.3 文件监听方案验证（POC M0.3）
 
@@ -170,14 +174,21 @@
     - `loadProject(dir: string): Promise<{ project: Project; warnings: string[] }>`
     - `saveProject(dir: string, project: Project): Promise<void>`
     - `validate(project: Project): ValidationError[]`
-  - 校验项：id 全局唯一、id 格式 `^[a-zA-Z_][a-zA-Z0-9_]*$`、嵌套深度 ≤ 6、children 仅 panel/button 可有、assetId 必须存在于 assets 列表、枚举值合法
+  - 校验项：
+    - **根节点唯一性**：nodes 数组有且仅有一个元素，type 必须为 panel
+    - id 全局唯一、id 格式 `^[a-zA-Z_][a-zA-Z0-9_]*$`
+    - 嵌套深度 ≤ 6
+    - children 仅 panel/button 可有
+    - assetId 必须存在于 assets 列表
+    - 枚举值合法（type / pivot / textAlign / direction）
 - **测试用例**：
   1. 加载 requirements.md 3.2 示例 YAML，得到 Project 对象，`warnings.length === 0`
   2. 加载包含重复 id 的 YAML，validate 返回对应错误，错误消息包含重复的 id 名
   3. id = "123abc" 时校验不通过
   4. 嵌套 7 层时校验不通过
   5. assetId = "不存在的id" 时校验返回 assetId 错误
-  6. 保存后重新加载，对象深度相等（go around-trip 无损）
+  6. 保存后重新加载，对象深度相等（round-trip 无损）
+  7. nodes 数组为空、含 2 个根节点、或根节点 type != panel 时均校验不通过
 
 ### T1.3 Schema 版本升级框架
 
@@ -186,12 +197,12 @@
 - **交付物**：
   - `src/core/migrations.ts`：`migrate(raw: any): { project: Project; upgraded: boolean; fromVersion: number }`
   - 升级链按 `schemaVersion` 逐级执行
-  - 当前仅一版本，预留 v0→v1 的示例空函数
+  - 当前版本即 v1，无需实际迁移；预留 v1→v2 的升级函数注册接口（`registerMigration(from, to, fn)`）
   - 遇到高版本时抛 `UnsupportedSchemaError`
 - **测试用例**：
   1. 加载 schemaVersion=1 的文件，upgraded=false
   2. 手动将 schemaVersion 改为 999，加载时抛 UnsupportedSchemaError
-  3. （预留）schemaVersion=0 文件加载后 upgraded=true，仅在内存升级，**磁盘文件保持不变**直到用户保存
+  3. 通过 `registerMigration` 注册一个测试用 v1→v2 转换（把所有节点 name 加后缀 "_v2"），加载 v1 文件后得到 v2 对象，upgraded=true，且**磁盘文件保持不变**直到用户触发保存
 
 ### T1.4 命令模式撤销重做框架
 
@@ -231,18 +242,19 @@
 - **需求引用**：2.1
 - **交付物**：
   - Toolbar 按钮：新建 / 打开 / 保存
-  - 新建项目对话框：输入目录（按钮选择）+ 分辨率（默认 1920×1080）
+  - 新建项目对话框：输入目录（按钮选择）+ 项目名称（默认取目录名，可编辑）+ 分辨率（默认 1920×1080）
   - 新建后生成 `project.yaml`（带 root_panel）+ `assets/` 空目录
   - 打开项目：目录必须包含 `project.yaml`，否则报错
   - 保存：Ctrl+S 与 Toolbar 按钮
   - 窗口标题显示 `{项目名} [- *]`，未保存时显示 `*`
   - 关闭窗口（Alt+F4 或点 X）时若有未保存修改，弹确认对话框（保存 / 不保存 / 取消）
 - **测试用例**：
-  1. 新建项目后目录下存在 `project.yaml` 和空 `assets/` 子目录
-  2. 打开一个不含 `project.yaml` 的目录，弹出错误提示，不加载
-  3. 修改任意属性后标题出现 `*`，Ctrl+S 后 `*` 消失
-  4. 有未保存修改时按 Alt+F4，弹对话框；点"取消"窗口不关闭
-  5. 点"不保存"窗口关闭，磁盘文件未变
+  1. 新建项目后目录下存在 `project.yaml` 和空 `assets/` 子目录；`meta.name` 等于对话框中输入的项目名称
+  2. 项目名称未手动修改时等于目录名；手动清空项目名称时阻止创建并提示
+  3. 打开一个不含 `project.yaml` 的目录，弹出错误提示，不加载
+  4. 修改任意属性后标题出现 `*`，Ctrl+S 后 `*` 消失
+  5. 有未保存修改时按 Alt+F4，弹对话框；点"取消"窗口不关闭
+  6. 点"不保存"窗口关闭，磁盘文件未变
 
 ### T1.7 画布基础渲染（Konva 集成）
 
@@ -271,7 +283,7 @@
   - Ctrl+0 重置 100%（且居中画布）
   - Ctrl+1 适合窗口（画布四周留约 5% 后取最小缩放比）
   - Ctrl+G 切换网格显示（每 10/50/100px 三档视缩放切换）
-  - StatusBar 显示缩放百分比、画布分辨率
+  - StatusBar 显示：缩放百分比 | 画布分辨率 | 选中节点数 | 未保存标记（"●" 或 "已保存"）
 - **测试用例**：
   1. 滚轮放大时鼠标下的像素位置不漂移（1px 内）
   2. 缩放到 5% 时自动限制在 10%
@@ -279,6 +291,7 @@
   4. 1920×1080 画布在 1400×900 窗口下按 Ctrl+1，缩放比约 0.65 左右且完整可见
   5. 中键拖拽时光标变抓手，松开后恢复
   6. Ctrl+G 切换网格，网格在画布白色区域内显示
+  7. StatusBar 四项信息实时更新：缩放变化时百分比同步；选中 3 个节点时显示"已选中 3"；dirty 状态切换时标记同步
 
 ### T1.9 单选与多选
 
@@ -328,17 +341,40 @@
 - **交付物**：
   - `src/panels/Properties.vue`
   - 分组显示：基础 / 变换 / 外观 / 控件特有
-  - 编辑控件按 2.10 规范（文本框/数字框/下拉/色块/开关）
+  - 编辑控件按 2.10 规范（文本框/数字框/下拉/开关/滑条+数字框）
   - 数字框支持方向键 ±1、Shift+方向键 ±10
+  - **拖拽 label 调值**：在属性标签（如 "X:"）上按住鼠标左键水平拖拽实时改值，光标变为 ↔；拖拽过程不入栈，松开时入栈一次（遵循 2.6.5 颗粒度）；Shift 按住时步长 ×10
   - 属性修改通过 `PatchNodeCommand` 入历史栈
   - 多选时显示共有属性，混合值显示 "—"
+  - 色块 / 取色器 / assetId 选择器在 T1.14 单独实现，本任务仅预留挂载点
 - **测试用例**：
   1. 选中节点修改 x 为 200，画布上节点位置更新
   2. 数字框聚焦后按↑键，值 +1；Shift+↑ +10
-  3. 输入非法 id（如 "1abc"）时输入框标红并显示 tooltip
-  4. 多选两个节点，共有属性可编辑；修改 opacity 同时应用到两个节点
-  5. 两节点 x 不同时，x 输入框显示 "—"；输入新值后两节点 x 均更新
-  6. 每次修改后 Ctrl+Z 能回到修改前值
+  3. 在 "X:" 标签上按住左键向右拖 50 屏幕像素，x 值增加（约 50），光标变 ↔；松开后 Ctrl+Z 仅撤销一次回到原值
+  4. Shift+拖 label 时步长明显更大（约 10 倍）
+  5. 输入非法 id（如 "1abc"）时输入框标红并显示 tooltip
+  6. 多选两个节点，共有属性可编辑；修改 opacity 同时应用到两个节点
+  7. 两节点 x 不同时，x 输入框显示 "—"；输入新值后两节点 x 均更新
+  8. 每次修改后 Ctrl+Z 能回到修改前值
+
+### T1.14 颜色选择器与 assetId 选择器
+
+- **依赖**：T1.11
+- **需求引用**：2.10
+- **交付物**：
+  - `src/panels/ColorPicker.vue`：色块预览按钮 → 点击弹出浮层；浮层内含 HSV 面板（可视化拖选）+ Hue 滑条 + Alpha 滑条 + 十六进制输入框（支持 #RGB / #RRGGBB 格式）+ 取消/确认按钮
+  - 浮层关闭时间：点击确认 / 点击外部 / Esc 均关闭（确认/外部关闭提交值，Esc 放弃）
+  - 拖拽过程实时预览（画布实时更新），但仅在关闭时入栈一次
+  - `src/panels/AssetPicker.vue`：缩略图预览按钮 → 点击弹出 assets 列表（缩略图网格）+ 搜索框 + 清除按钮（置 null）
+  - 取色器与 assetId 选择器挂载到 T1.11 预留点
+- **测试用例**：
+  1. 点击 color 字段色块，弹出取色器浮层；拖选 HSV 面板画布节点颜色实时更新
+  2. 在十六进制输入框输入 `#ff0000`，HSV 面板和色块同步；非法输入（如 `#xyz`）标红不生效
+  3. 拖选过程中连续 30 帧变化，点确认后 Ctrl+Z 仅撤销一次
+  4. Esc 关闭浮层时节点颜色回到打开前值
+  5. 点击 assetId 字段打开选择器，列出所有 assets 缩略图
+  6. 搜索框输入 "btn"，列表过滤；点某个缩略图后关闭浮层，节点 assetId 更新
+  7. 点"清除"按钮，assetId 设为 null，画布对应节点显示占位
 
 ### T1.12 拖拽移动节点
 
@@ -393,18 +429,24 @@
   5. 无选中时点击按钮，节点加入 root_panel
   6. Ctrl+Z 撤销，节点消失
 
-### T2.2 右键菜单（画布）
+### T2.2 右键菜单（画布 + 节点树）
 
-- **依赖**：T2.1
-- **需求引用**：2.6.6
+- **依赖**：T2.1, T1.10
+- **需求引用**：2.6.6, 2.9
 - **交付物**：
-  - 画布空白右键：添加控件 → 7 种子菜单 / 粘贴
-  - 节点上右键：复制 / 粘贴 / 删除 / 上移 / 下移 / 置顶 / 置底 / 锁定 / 解锁
+  - 统一的 `src/components/ContextMenu.vue` 组件
+  - 画布空白右键：添加控件 → 7 种子菜单 / 粘贴（剪贴板为空时禁用）
+  - 画布节点上右键：复制 / 粘贴 / 删除 / 上移 / 下移 / 置顶 / 置底 / 锁定 / 解锁
+  - **节点树节点上右键**：复制 / 粘贴 / 删除 / 上移 / 下移 / 置顶 / 置底（不含锁定,锁定通过节点树锁图标操作）
   - 添加控件在右键位置创建节点
 - **测试用例**：
   1. 画布空白右键菜单，点 "添加 Text"，Text 出现在点击位置
-  2. 节点右键点"置顶"，该节点移到 children 数组末尾，渲染在最上层
-  3. 右键"锁定"后节点无法被画布选中，节点树锁图标更新
+  2. 画布节点右键点"置顶"，该节点移到 children 数组末尾，渲染在最上层
+  3. 画布节点右键"锁定"后节点无法被画布选中，节点树锁图标更新
+  4. 剪贴板为空时，"粘贴" 菜单项置灰禁用
+  5. 节点树右键菜单显示 7 项操作，点"删除"节点从树与画布同步消失
+  6. 节点树右键"置顶"与画布右键"置顶"产生相同结果（children 数组末尾）
+  7. 在 root_panel 节点树右键，"删除"项置灰（根节点不可删）
 
 ### T2.3 复制粘贴删除
 
@@ -488,11 +530,16 @@
 
 - **依赖**：T2.7
 - **需求引用**：2.6.2, 2.7
-- **交付物**：资源缩略图拖到画布，松手处创建 Image，width/height=原始尺寸，pivot=topLeft
+- **交付物**：
+  - 资源缩略图拖到画布，松手处创建 Image，width/height=原始尺寸，pivot=topLeft
+  - **父节点判定规则**：以**落点下的最上层容器节点**（panel/button）为父节点；若落点下无容器，则以 root_panel 为父节点。坐标自动转换为相对该父节点的坐标
+  - 该规则与工具栏/右键菜单的"按当前选中判定父节点"规则不同，此处基于落点更符合直觉
 - **测试用例**：
-  1. 拖 100×200 的 PNG 到画布 (500, 300)，创建 Image x=500 y=300 width=100 height=200
-  2. 拖到 Panel 上时创建为该 Panel 子节点（相对坐标）
-  3. 操作入历史栈可撤销
+  1. 拖 100×200 的 PNG 到画布空白处 (500, 300)，父节点为 root_panel，创建 Image x=500 y=300 width=100 height=200
+  2. 拖到 Panel（相对 root_panel 位于 (100,100)）内部位置 (150, 120)，父节点为该 Panel，相对坐标为 (50, 20)
+  3. 拖到 Button 内部时，父节点为该 Button（添加为 children 元素）
+  4. 拖到 Image（非容器）上方，穿透到其下的容器或 root_panel，不把 Image 当父节点
+  5. 操作入历史栈可撤销
 
 ### T2.9 Text 双击内联编辑
 
@@ -560,10 +607,11 @@
 
 ### T3.1 Unity C# 代码生成器
 
-- **依赖**：M2 全部，T0.4
+- **依赖**：T1.1, T1.2, T2.7（资源管理）, T0.4（Unity POC 结论）
 - **需求引用**：2.12.1, 2.12.3, 2.12.4, 2.12.5, 2.12.6
 - **交付物**：
-  - `src/export/unity.ts`：`generateUnityScript(project: Project, exportConfig): string`
+  - `src/export/unity.ts`：`generateUnityScript(project: Project, exportConfig, sourceAssetPath: string): string`
+  - **`sourceAssetPath` 由调用方在运行时传入当前项目 assets 目录的绝对路径，内嵌进生成的 C# 脚本字符串常量，不写回 YAML**
   - 输出内容：
     - `using` 声明 + `[MenuItem]` 入口
     - Canvas 创建（ScreenSpaceOverlay + CanvasScaler）
@@ -580,6 +628,7 @@
   4. Slider 子对象包含 Background、Fill Area/Fill、Handle Slide Area/Handle
   5. PNG 的 TextureType 自动设为 Sprite
   6. 覆盖导出时弹确认提示；取消则不覆盖
+  7. 将项目目录从 `D:/p1` 复制到 `D:/p2` 后，在 p2 中打开再导出，生成的 C# 中 sourceAssetPath 自动更新为 `D:/p2/assets`（而非继续指向 p1）
 
 ### T3.2 导出设置对话框
 
@@ -589,13 +638,14 @@
   - Toolbar 下拉选 Unity → 弹对话框
   - 表单：assetRootPath、defaultFont、fontSizeScale、referenceResolution
   - "选择导出位置" 按钮
-  - 修改回写 YAML 的 export 字段
+  - 修改回写 YAML 的 export 字段（但 `sourceAssetPath` 始终不写入 YAML，运行时注入）
   - 导出完成弹成功对话框：路径 + "打开所在文件夹" + 使用说明
 - **测试用例**：
   1. 打开对话框显示当前 export.unity 配置
   2. 修改 fontSizeScale 为 1.2，关闭并保存 YAML 后值持久化
   3. 选导出位置 `D:/test.cs`，导出完成后该文件存在
   4. 成功对话框"打开所在文件夹"在文件浏览器中定位 .cs
+  5. 检查 project.yaml：`export.unity.fontSizeScale` 已更新，但整个文件中不存在 `sourceAssetPath` 字段
 
 ### T3.3 Unity 导出端到端回归
 
@@ -646,18 +696,28 @@
 
 ## M5 — 打磨
 
-### T5.1 快捷键统一实现与帮助面板
+### T5.1 设置对话框 + 快捷键统一实现
 
 - **依赖**：M2
-- **需求引用**：附录 A
+- **需求引用**：2.8（设置按钮内容表）, 附录 A
 - **交付物**：
   - 统一的快捷键注册表 `src/core/shortcuts.ts`
-  - 设置按钮打开"快捷键参考"对话框（显示附录 A 表）
   - 在输入框聚焦时禁用画布快捷键（避免误触）
+  - `src/panels/SettingsDialog.vue`：Toolbar 设置按钮打开，含四分页：
+    - **项目**：项目名称（meta.name）、画布分辨率（修改时弹二次确认）— 保存到 project.yaml
+    - **编辑器**：显示网格默认开关、吸附阈值、历史步数上限 — 保存到 `%APPDATA%/lwb-ui-editor/settings.json`
+    - **快捷键**：只读的附录 A 表格
+    - **关于**：版本号、Schema 版本、许可证
+  - `src/core/userSettings.ts`：读写用户配置文件
 - **测试用例**：
   1. 属性面板输入框聚焦时按 Delete 不删除节点
-  2. 对话框列出所有快捷键
+  2. 快捷键分页列出所有附录 A 快捷键
   3. 所有附录 A 快捷键逐项验证可用
+  4. 项目分页修改项目名称后关闭对话框，标题出现 `*`；Ctrl+S 后 YAML 中 meta.name 更新
+  5. 项目分页修改画布分辨率弹确认对话框，点确认后画布尺寸变化
+  6. 编辑器分页修改吸附阈值为 10，关闭后拖拽吸附行为按 10px 触发；重启应用后设置保留
+  7. 编辑器分页修改不触发 project.yaml 的未保存标记（`*` 不出现）
+  8. 关于分页显示与 package.json / schema.ts 一致的版本号
 
 ### T5.2 性能回归
 
@@ -711,13 +771,21 @@
 ## 附录 C：依赖关系图（关键路径）
 
 ```
-T0.1 → T0.2 → T0.3 ┐
-      └→ T0.4       ├→ T1.x → T2.x → T3.x (Unity)
-      └→ T0.5 ⚠️    └────────────→ T4.x (Unreal)
-      └→ T0.6       └→ T5.x (打磨)
-      └→ T0.7
+应用侧（依赖 Tauri/Vue 脚手架）：
+  T0.1 ──► T0.2 ──► T0.3 ──► T0.6 ──► T0.7 ──► M1 ──► M2 ──► M3 (Unity)
+                                                          └─► M4 (Unreal)
+                                                          └─► M5 (打磨)
+
+引擎侧（独立 POC，与应用侧脚手架无依赖）：
+  T0.4 (Unity POC)  ──► 为 T3.1 Unity 生成器提供 API 经验
+  T0.5 (Unreal POC) ──► 决定 T4.1 方案（A/B/C），最迟在 M3 启动前完成
 ```
 
-**关键路径**：T0.5（Unreal POC）决定 M4 方案，必须在 M1 启动前完成。
+**关键依赖说明**：
+- T0.4 / T0.5 是独立的引擎工程 POC，不依赖 Tauri 脚手架，可与 T0.1~T0.3 并行启动
+- T0.5 的结论（方案 A/B/C）必须在 T4.1 开始前确定；建议最迟与 M3 并行启动
+- T0.6 画布性能 POC 和 T0.7 IME POC 依赖 T0.1 脚手架
 
-**最大风险点**：T0.5。若 POC 失败，整体进度延长 1 个里程碑用于实现备选方案。
+**关键风险点**：
+- **T0.5**：若 Unreal Python API 不足，需切换到 C++ 或 JSON+插件方案，M4 工作量可能翻倍
+- **T0.6**：若 Konva.js 在 300 节点下 FPS 不达标，需在 M1 前评估替代（如 PixiJS）
