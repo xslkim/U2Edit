@@ -3,19 +3,19 @@
 > **本文档是 Dev Agent 和 QA Agent 协作的唯一状态源。**
 > 两个 Agent 在每个任务的生命周期中更新本文档，确保端到端可追溯。
 
-> 版本: v1.2
+> 版本: v1.4
 > 创建日期: 2026-04-15
 > 配套文档: [requirements.md](requirements.md) v0.9 · [tasks.md](tasks.md) v1.3
 
 ## 0. 当前阶段说明（v1.1 新增）
 
-- 仓库尚未实现任何 M0 任务（package.json 仅有基础 Vue + Tauri 脚手架，无 plugin-fs / plugin-dialog 等），所有任务都为 `pending`。
+- **M0 进度**：T0.1–T0.3 已实现并 `passed`（见 §4）；其余 T0.4–T0.7 仍 `pending`。
 - **QA Agent 当前不进入 `testing` 状态**，避免把"未实现"误判为"实现错误"。QA 在本阶段做：
   1. 测试方案与文档审查（已产出本轮歧义清单）
   2. 准备 fixture（示例 YAML、压测脚本）与基线快照
   3. 风险与依赖追踪（见第 6 节）
 - **Unity / Unreal 导出链路 QA 验收暂缓**（涉及 T0.4、T0.5、T3.1–T3.3、T4.1、T4.2）。这些任务可正常进入 `dev_done`，但停留在 `dev_done` 直到人工解锁。原因：当前优先验证应用主链路（M0–M2），引擎工程的搭建与试运行成本另行排期。
-- 本阶段结束的判定：**T0.1 进入 `dev_done`** —— 之后 QA 才正式进入用例执行流程。
+- 本阶段结束的判定：**T0.1 进入 `dev_done`** —— 之后 QA 才正式进入用例执行流程（**已满足**）。
 
 ---
 
@@ -46,7 +46,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 
 ### 1.2 Dev Agent 职责
 
-1. 开始任务前检查所有前置依赖是否已 `accepted`（或至少 `passed`）
+1. 开始任务前检查所有前置依赖是否已 `accepted`（或至少 `passed`）。**例外**：若某前置任务在 [tasks.md](tasks.md)「测试范围说明」中标注为 **QA 测试暂缓**，则该任务达到 `dev_done` 即视为满足依赖（**`dev_done` 等同 `passed`**，用于解锁后续任务）；不要求其进入 `testing`/`passed`
 2. 开发过程中将状态设为 `in_progress`，填写 `started_at` 时间
 3. 自测通过后：
    - 提交 git commit，message 格式：`[T{id}] {任务标题}`
@@ -58,7 +58,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 ### 1.3 QA Agent 职责
 
 1. 监听 `dev_done` 状态的任务（**且任务不在"测试暂缓"清单中** — 见第 0 节）
-2. 进入前置检查：依赖任务全部 `passed/accepted`，否则不进入 `testing`
+2. 进入前置检查：依赖任务全部 `passed/accepted`；若依赖项为 **QA 测试暂缓** 任务，则 `dev_done` 即可。否则不进入 `testing`
 3. 状态设为 `testing`
 4. 按 tasks.md 中的测试用例逐条执行验证
 5. 产出报告 `qa-reports/T{id}.md`，格式见附录 A
@@ -69,7 +69,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 **QA 不主动测试的情形（不视为缺陷，记入备注）**：
 - 任务状态为 `pending`（Dev 尚未交付）
 - 任务在"测试暂缓"清单（Unity/Unreal 导出链路）
-- 任务依赖未全部 `passed`
+- 任务依赖未全部满足：`passed`/`accepted`，或对暂缓任务为 `dev_done`（见 1.2 条 1 之例外）
 
 ### 1.4 更新频率
 
@@ -82,13 +82,13 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 
 | 里程碑 | 状态 | 任务总数 | 完成数 | 进度 |
 |--------|------|---------|--------|------|
-| M0 — 工程搭建与 POC | `pending` | 7 | 0 | 0% |
+| M0 — 工程搭建与 POC | `in_progress` | 7 | 3 | 43% |
 | M1 — 基础编辑器 | `pending` | 14 | 0 | 0% |
 | M2 — 完整控件 & 资源 & 编辑操作 | `pending` | 12 | 0 | 0% |
 | M3 — Unity 导出 | `pending` | 3 | 0 | 0% |
 | M4 — Unreal 导出 | `pending` | 2 | 0 | 0% |
 | M5 — 打磨 | `pending` | 3 | 0 | 0% |
-| **总计** | | **41** | **0** | **0%** |
+| **总计** | | **41** | **3** | 7% |
 
 ---
 
@@ -99,7 +99,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | # | 决策项 | 状态 | 结论 | 决策日期 | 关联任务 |
 |---|--------|------|------|---------|---------|
 | D1 | Unreal 导出方案（A:Python / B:C++ / C:JSON+插件） | `待定` | — | — | T0.5 → T4.1 |
-| D2 | 文件监听方案（plugin-fs watch / 社区插件） | `待定` | — | — | T0.3 |
+| D2 | 文件监听方案（plugin-fs watch / 社区插件） | `已定` | 采用 **tauri-plugin-fs**（`watch` feature）+ 前端 `watch`/`watchImmediate`；见 `docs/poc-reports/T0.3-file-watch.md` | 2026-04-15 | T0.3 |
 | D3 | 画布渲染引擎（Konva.js / 替代方案） | `待定` | 预选 Konva.js，T0.6 验证 | — | T0.6 |
 
 > **D1 是整个项目最大风险点。** T0.5 的 POC 结论直接决定 M4 的工作量（可能翻倍）。
@@ -113,9 +113,9 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 
 | ID | 任务标题 | 依赖 | 状态 | retry | commit | 报告 | 备注 |
 |----|---------|------|------|-------|--------|------|------|
-| T0.1 | Tauri 2 + Vue 3 + TS 项目初始化 | — | `pending` | 0 | | | |
-| T0.2 | 文件系统 & 对话框 & 窗口关闭拦截验证 | T0.1 | `pending` | 0 | | | |
-| T0.3 | 文件监听方案验证 | T0.2 | `pending` | 0 | | | 结论填入 D2 |
+| T0.1 | Tauri 2 + Vue 3 + TS 项目初始化 | — | `passed` | 0 | （见 git） | [qa-reports/T0.1.md](../qa-reports/T0.1.md) | |
+| T0.2 | 文件系统 & 对话框 & 窗口关闭拦截验证 | T0.1 | `passed` | 0 | （见 git） | [qa-reports/T0.2.md](../qa-reports/T0.2.md) | |
+| T0.3 | 文件监听方案验证 | T0.2 | `passed` | 0 | （见 git） | [qa-reports/T0.3.md](../qa-reports/T0.3.md) | D2 已更新 |
 | T0.4 | Unity C# Editor 脚本 POC | — | `pending` | 0 | | | 独立引擎工程；**QA 测试暂缓**（见第 0 节） |
 | T0.5 | Unreal Python 脚本 POC ⚠️ | — | `pending` | 0 | | | **关键风险点**，结论填入 D1；**QA 测试暂缓** |
 | T0.6 | Konva.js 画布性能 POC | T0.1 | `pending` | 0 | | | 结论填入 D3 |
@@ -278,7 +278,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 |---|----------|--------|------|---------|---------|
 | R1 | Unreal Python API 能力不足 | **高** | 待验证 | T0.5 | 备选方案 B(C++) / C(JSON+插件)；T0.5 完成后更新 D1 |
 | R2 | Konva.js 300 节点性能不达标 | 中 | 待验证 | T0.6 | 备选 PixiJS；T0.6 完成后更新 D3 |
-| R3 | Tauri 文件监听在 Windows 下不稳定 | 中 | 待验证 | T0.3 | 备选社区插件或轮询方案 |
+| R3 | Tauri 文件监听在 Windows 下不稳定 | 中 | 部分缓解 | T0.3 | 已选 plugin-fs watch；实机长期稳定性仍待观察 |
 | R4 | 中文 IME 与 Canvas 快捷键冲突 | 低 | 待验证 | T0.7 | compositionstart/end 事件屏蔽快捷键 |
 
 ---
@@ -289,7 +289,9 @@ QA 验证报告存放于 `qa-reports/` 目录，命名规则：`T{id}.md`
 
 | 任务 ID | 报告文件 | 结果 | 日期 |
 |---------|---------|------|------|
-| — | — | — | — |
+| T0.1 | [qa-reports/T0.1.md](../qa-reports/T0.1.md) | Pass（含人工补测项） | 2026-04-15 |
+| T0.2 | [qa-reports/T0.2.md](../qa-reports/T0.2.md) | Pass（含人工补测项） | 2026-04-15 |
+| T0.3 | [qa-reports/T0.3.md](../qa-reports/T0.3.md) | Pass（含人工补测项） | 2026-04-15 |
 
 > QA Agent 每验证完一个任务，在此表格追加一行。
 
