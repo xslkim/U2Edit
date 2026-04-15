@@ -3,9 +3,19 @@
 > **本文档是 Dev Agent 和 QA Agent 协作的唯一状态源。**
 > 两个 Agent 在每个任务的生命周期中更新本文档，确保端到端可追溯。
 
-> 版本: v1.0
+> 版本: v1.1
 > 创建日期: 2026-04-15
-> 配套文档: [requirements.md](requirements.md) v0.8 · [tasks.md](tasks.md) v1.1
+> 配套文档: [requirements.md](requirements.md) v0.9 · [tasks.md](tasks.md) v1.2
+
+## 0. 当前阶段说明（v1.1 新增）
+
+- 仓库尚未实现任何 M0 任务（package.json 仅有基础 Vue + Tauri 脚手架，无 plugin-fs / plugin-dialog 等），所有任务都为 `pending`。
+- **QA Agent 当前不进入 `testing` 状态**，避免把"未实现"误判为"实现错误"。QA 在本阶段做：
+  1. 测试方案与文档审查（已产出本轮歧义清单）
+  2. 准备 fixture（示例 YAML、压测脚本）与基线快照
+  3. 风险与依赖追踪（见第 6 节）
+- **Unity / Unreal 导出链路 QA 验收暂缓**（涉及 T0.4、T0.5、T3.1–T3.3、T4.1、T4.2）。这些任务可正常进入 `dev_done`，但停留在 `dev_done` 直到人工解锁。原因：当前优先验证应用主链路（M0–M2），引擎工程的搭建与试运行成本另行排期。
+- 本阶段结束的判定：**T0.1 进入 `dev_done`** —— 之后 QA 才正式进入用例执行流程。
 
 ---
 
@@ -47,13 +57,19 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 
 ### 1.3 QA Agent 职责
 
-1. 监听 `dev_done` 状态的任务
-2. 状态设为 `testing`
-3. 按 tasks.md 中的测试用例逐条执行验证
-4. 产出报告 `qa-reports/T{id}.md`，格式见附录 A
-5. 全部 Pass → 状态设为 `passed`，填写 `tested_at`
-6. 任何 Fail → 状态设为 `failed`，`fail_reason` 记录概要
-7. **Fail 超过 2 次**（retry ≥ 2）→ 在 `notes` 中标记 `ESCALATE`，等待人工介入
+1. 监听 `dev_done` 状态的任务（**且任务不在"测试暂缓"清单中** — 见第 0 节）
+2. 进入前置检查：依赖任务全部 `passed/accepted`，否则不进入 `testing`
+3. 状态设为 `testing`
+4. 按 tasks.md 中的测试用例逐条执行验证
+5. 产出报告 `qa-reports/T{id}.md`，格式见附录 A
+6. 全部 Pass → 状态设为 `passed`，填写 `tested_at`
+7. 任何 Fail → 状态设为 `failed`，`fail_reason` 记录概要
+8. **Fail 超过 2 次**（retry ≥ 2）→ 在 `notes` 中标记 `ESCALATE`，等待人工介入
+
+**QA 不主动测试的情形（不视为缺陷，记入备注）**：
+- 任务状态为 `pending`（Dev 尚未交付）
+- 任务在"测试暂缓"清单（Unity/Unreal 导出链路）
+- 任务依赖未全部 `passed`
 
 ### 1.4 更新频率
 
@@ -100,8 +116,8 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | T0.1 | Tauri 2 + Vue 3 + TS 项目初始化 | — | `pending` | 0 | | | |
 | T0.2 | 文件系统 & 对话框 & 窗口关闭拦截验证 | T0.1 | `pending` | 0 | | | |
 | T0.3 | 文件监听方案验证 | T0.2 | `pending` | 0 | | | 结论填入 D2 |
-| T0.4 | Unity C# Editor 脚本 POC | — | `pending` | 0 | | | 独立引擎工程，可与 T0.1 并行 |
-| T0.5 | Unreal Python 脚本 POC ⚠️ | — | `pending` | 0 | | | **关键风险点**，结论填入 D1 |
+| T0.4 | Unity C# Editor 脚本 POC | — | `pending` | 0 | | | 独立引擎工程；**QA 测试暂缓**（见第 0 节） |
+| T0.5 | Unreal Python 脚本 POC ⚠️ | — | `pending` | 0 | | | **关键风险点**，结论填入 D1；**QA 测试暂缓** |
 | T0.6 | Konva.js 画布性能 POC | T0.1 | `pending` | 0 | | | 结论填入 D3 |
 | T0.7 | 中文 IME 输入验证 | T0.1 | `pending` | 0 | | | |
 
@@ -145,16 +161,16 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 
 | ID | 任务标题 | 依赖 | 状态 | retry | commit | 报告 | 备注 |
 |----|---------|------|------|-------|--------|------|------|
-| T3.1 | Unity C# 代码生成器 | T1.1, T1.2, T2.7, T0.4 | `pending` | 0 | | | |
-| T3.2 | 导出设置对话框 | T3.1 | `pending` | 0 | | | |
-| T3.3 | Unity 导出端到端回归 | T3.2 | `pending` | 0 | | | |
+| T3.1 | Unity C# 代码生成器 | T1.1, T1.2, T2.7, T0.4 | `pending` | 0 | | | **QA 测试暂缓** |
+| T3.2 | 导出设置对话框 | T3.1 | `pending` | 0 | | | **QA 测试暂缓** |
+| T3.3 | Unity 导出端到端回归 | T3.2 | `pending` | 0 | | | **QA 测试暂缓** |
 
 ### M4 — Unreal 导出
 
 | ID | 任务标题 | 依赖 | 状态 | retry | commit | 报告 | 备注 |
 |----|---------|------|------|-------|--------|------|------|
-| T4.1 | Unreal 代码生成器（方案取决于 D1） | T0.5 | `pending` | 0 | | | 方案由 D1 决定 |
-| T4.2 | Unreal 导出端到端回归 | T4.1 | `pending` | 0 | | | |
+| T4.1 | Unreal 代码生成器（方案取决于 D1） | T0.5 | `pending` | 0 | | | 方案由 D1 决定；**QA 测试暂缓** |
+| T4.2 | Unreal 导出端到端回归 | T4.1 | `pending` | 0 | | | **QA 测试暂缓** |
 
 ### M5 — 打磨
 
