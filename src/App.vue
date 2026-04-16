@@ -51,6 +51,7 @@ import type { CanvasViewState } from "./canvas/renderer";
 import { SelectionStore } from "./canvas/selection";
 import NodeTree from "./panels/NodeTree.vue";
 import ControlAddToolbar from "./panels/ControlAddToolbar.vue";
+import Assets from "./panels/Assets.vue";
 import Properties from "./panels/Properties.vue";
 
 const TREE_MIN = 150;
@@ -373,6 +374,11 @@ function clearNodeLocks(): void {
 }
 
 function onNodeTreeDirty(): void {
+  setDirty(true);
+  editorCanvasRef.value?.rebuildScene();
+}
+
+function onAssetsDirty(): void {
   setDirty(true);
   editorCanvasRef.value?.rebuildScene();
 }
@@ -1121,7 +1127,15 @@ function startDragPropsSplit(e: PointerEvent): void {
               <span>Assets</span>
               <button type="button" class="icon-btn" title="隐藏" @click="showAssets = false">×</button>
             </div>
-            <div class="panel__body placeholder">（资源 · T2.7）</div>
+            <div v-if="loadedProject && projectDir" class="panel__body panel__body--assets">
+              <Assets
+                :project="loadedProject"
+                :project-dir="projectDir"
+                :commit-command="commitHistoryCommand"
+                @dirty="onAssetsDirty"
+              />
+            </div>
+            <div v-else class="panel__body placeholder">打开项目后管理资源</div>
           </section>
         </aside>
       </div>

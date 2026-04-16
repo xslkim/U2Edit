@@ -30,3 +30,16 @@ export async function existsPath(path: string): Promise<boolean> {
 export async function ensureDir(path: string): Promise<void> {
   await mkdir(path, { recursive: true });
 }
+
+/** 多选图片文件（png/jpg/jpeg/webp），取消返回 null */
+export async function pickImageFiles(): Promise<string[] | null> {
+  const selected = await open({
+    multiple: true,
+    filters: [{ name: "Image", extensions: ["png", "jpg", "jpeg", "webp"] }],
+    title: "导入图片",
+  });
+  if (selected === null) {
+    return null;
+  }
+  return Array.isArray(selected) ? selected : [selected];
+}

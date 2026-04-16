@@ -332,3 +332,38 @@ export class RemoveAssetCommand implements Command {
     this.project.assets.splice(this.index, 0, structuredClone(this.snapshot));
   }
 }
+
+/** 就地更新 `assets` 中某项（用于覆盖导入更新尺寸等） */
+export class PatchAssetCommand implements Command {
+  public label = "更新资源";
+  private readonly before: AssetRef;
+
+  constructor(
+    private readonly project: Project,
+    private readonly assetId: string,
+    private readonly patch: Partial<AssetRef>,
+    beforeSnapshot?: AssetRef,
+  ) {
+    const i = project.assets.findIndex((a) => a.id === assetId);
+    if (i < 0) {
+      throw new Error(`PatchAssetCommand: 找不到资源 ${assetId}`);
+    }
+    this.before = beforeSnapshot ? structuredClone(beforeSnapshot) : structuredClone(project.assets[i]);
+  }
+
+  do(): void {
+    const a = this.project.assets.find((x) => x.id === this.assetId);
+    if (!a) {
+      return;
+    }
+    Object.assign(a, this.patch);
+  }
+
+  undo(): void {
+    const i = this.project.assets.findIndex((a) => a.id === this.assetId);
+    if (i < 0) {
+      return;
+    }
+    this.project.assets[i] = structuredClone(this.before);
+  }
+}
