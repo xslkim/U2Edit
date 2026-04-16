@@ -116,8 +116,8 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | T0.1 | Tauri 2 + Vue 3 + TS 项目初始化 | — | `passed` | 0 | e178c33 | [qa-reports/T0.1.md](../qa-reports/T0.1.md) | |
 | T0.2 | 文件系统 & 对话框 & 窗口关闭拦截验证 | T0.1 | `passed` | 0 | e178c33 | [qa-reports/T0.2.md](../qa-reports/T0.2.md) | |
 | T0.3 | 文件监听方案验证 | T0.2 | `passed` | 0 | e178c33 | [qa-reports/T0.3.md](../qa-reports/T0.3.md) | D2 已更新 |
-| T0.4 | Unity C# Editor 脚本 POC | — | `dev_done` | 0 | PLACEHOLDER | | 独立引擎工程；**QA 测试暂缓**（见第 0 节） |
-| T0.5 | Unreal Python 脚本 POC ⚠️ | — | `dev_done` | 0 | PLACEHOLDER | | D1 已更新；**QA 测试暂缓** |
+| T0.4 | Unity C# Editor 脚本 POC | — | `dev_done` | 0 | 115d73d | | 独立引擎工程；**QA 测试暂缓**（见第 0 节） |
+| T0.5 | Unreal Python 脚本 POC ⚠️ | — | `dev_done` | 0 | 115d73d | | D1 已更新；**QA 测试暂缓** |
 | T0.6 | Konva.js 画布性能 POC | T0.1 | `passed` | 0 | 06ffd32 | [qa-reports/T0.6.md](../qa-reports/T0.6.md) | D3 已更新 |
 | T0.7 | 中文 IME 输入验证 | T0.1 | `passed` | 0 | 5369499 | [qa-reports/T0.7.md](../qa-reports/T0.7.md) | |
 
