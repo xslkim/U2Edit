@@ -47,6 +47,7 @@ import {
   unionWorldBoxes,
   worldAabbOfNode,
 } from "./guides";
+import { findTopTextNodeIdAtCanvasPoint } from "./textInlineHit";
 import { applyWorldAabbToNode, resizeWorldAabbByPointer } from "./resizeMath";
 import {
   buildSelectionOverlayLayer,
@@ -692,6 +693,11 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
   /** T2.6 对齐参考线（水平红 / 垂直绿） */
   let alignmentGuideGroup: Konva.Group | null = null;
 
+  /** T2.9 Text 内联编辑 */
+  let textInlineTa: HTMLTextAreaElement | null = null;
+  let textInlineNodeId: string | null = null;
+  let textInlineBefore: TextNode | null = null;
+
   const clearAlignmentGuides = (): void => {
     alignmentGuideGroup?.destroy();
     alignmentGuideGroup = null;
@@ -786,6 +792,132 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     x: (sx - viewPan.x) / viewScale,
     y: (sy - viewPan.y) / viewScale,
   });
+
+  function cleanupTextInlineDom(): void {
+    if (textInlineTa) {
+      textInlineTa.remove();
+      textInlineTa = null;
+    }
+    textInlineNodeId = null;
+    textInlineBefore = null;
+  }
+
+  function syncTextInlineOverlay(): void {
+    if (!textInlineTa || !textInlineNodeId) {
+      return;
+    }
+    const f = findNode(project, textInlineNodeId);
+    if (!f || f.node.type !== "text") {
+      return;
+    }
+    const n = f.node;
+    const tl = worldTopLeftOfNode(project, textInlineNodeId);
+    const ax = tl.x * viewScale + viewPan.x;
+    const ay = tl.y * viewScale + viewPan.y;
+    const cr = container.getBoundingClientRect();
+    const fs = Math.max(8, Math.round(n.fontSize * viewScale));
+    textInlineTa.style.left = `${Math.round(cr.left + ax)}px`;
+    textInlineTa.style.top = `${Math.round(cr.top + ay)}px`;
+    textInlineTa.style.width = `${Math.round(n.width * viewScale)}px`;
+    textInlineTa.style.height = `${Math.round(n.height * viewScale)}px`;
+    textInlineTa.style.fontSize = `${fs}px`;
+    textInlineTa.style.lineHeight = `${fs}px`;
+  }
+
+  function endTextInlineEdit(commit: boolean): void {
+    if (!textInlineNodeId || !textInlineBefore) {
+      cleanupTextInlineDom();
+      return;
+    }
+    const id = textInlineNodeId;
+    const before = textInlineBefore;
+    const ta = textInlineTa;
+    const raw = ta?.value ?? before.content;
+    cleanupTextInlineDom();
+    if (commit && commitCommand && raw !== before.content) {
+      commitCommand(new PatchNodeCommand(project, id, { content: raw }, "文本", before));
+    }
+    rebuildContent();
+    updateSelectionOverlay();
+  }
+
+  function startTextInlineEdit(nodeId: string): void {
+    const f = findNode(project, nodeId);
+    if (!f || f.node.type !== "text" || isNodeLocked(nodeId)) {
+      return;
+    }
+    endTextInlineEdit(false);
+    resetNodeDrag();
+    resetResize();
+    textInlineNodeId = nodeId;
+    textInlineBefore = structuredClone(f.node);
+    const n = f.node;
+    const ta = document.createElement("textarea");
+    ta.value = n.content;
+    ta.setAttribute("aria-label", "编辑 Text 内容");
+    Object.assign(ta.style, {
+      position: "fixed",
+      zIndex: "10000",
+      margin: "0",
+      padding: "2px 4px",
+      boxSizing: "border-box",
+      fontFamily: "system-ui, sans-serif",
+      resize: "none",
+      outline: "1px solid #2563eb",
+      border: "none",
+      overflow: "auto",
+    });
+    ta.style.color = n.color;
+    ta.style.textAlign = n.textAlign;
+    const onBlur = (): void => {
+      endTextInlineEdit(true);
+    };
+    const onKeydown = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        ta.removeEventListener("blur", onBlur);
+        endTextInlineEdit(false);
+        return;
+      }
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        ta.removeEventListener("blur", onBlur);
+        endTextInlineEdit(true);
+      }
+    };
+    ta.addEventListener("keydown", onKeydown);
+    ta.addEventListener("blur", onBlur);
+    container.appendChild(ta);
+    textInlineTa = ta;
+    syncTextInlineOverlay();
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.select();
+    });
+  }
+
+  const onStageDblClick = (e: Konva.KonvaEventObject<MouseEvent>): void => {
+    if (!commitCommand || !stage) {
+      return;
+    }
+    const ev = e.evt;
+    if (ev.button !== 0) {
+      return;
+    }
+    resetNodeDrag();
+    const p = stage.getPointerPosition();
+    if (!p) {
+      return;
+    }
+    const canvasPt = stageToCanvas(p.x, p.y);
+    const tid = findTopTextNodeIdAtCanvasPoint(project, canvasPt.x, canvasPt.y, isNodeLocked);
+    if (tid) {
+      ev.preventDefault();
+      selection.selectOnly(tid);
+      updateSelectionOverlay();
+      startTextInlineEdit(tid);
+    }
+  };
 
   const destroyMarqueeVisual = (): void => {
     marqueeRectKonva?.destroy();
@@ -923,6 +1055,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     viewport.scale({ x: viewScale, y: viewScale });
     mainLayer?.batchDraw();
     notifyView();
+    syncTextInlineOverlay();
   };
 
   const syncStageSize = (): void => {
@@ -1536,6 +1669,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
   };
 
   const destroy = (): void => {
+    endTextInlineEdit(false);
     resetNodeDrag();
     resetResize();
     container.removeEventListener("pointerleave", onContainerPointerLeave);
@@ -1550,6 +1684,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     window.removeEventListener("keyup", onWindowKeyUp);
     stage?.off("wheel", onWheel);
     stage?.off("mousedown", onStageMouseDown);
+    stage?.off("dblclick dbltap", onStageDblClick);
     stage?.off("contextmenu", onStageContextMenu);
     stage?.destroy();
     stage = null;
@@ -1595,6 +1730,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
   };
 
   const redraw = async (): Promise<void> => {
+    endTextInlineEdit(false);
     resetNodeDrag();
     resetResize();
     container.removeEventListener("pointerleave", onContainerPointerLeave);
@@ -1609,6 +1745,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     window.removeEventListener("keyup", onWindowKeyUp);
     stage?.off("wheel", onWheel);
     stage?.off("mousedown", onStageMouseDown);
+    stage?.off("dblclick dbltap", onStageDblClick);
     stage?.off("contextmenu", onStageContextMenu);
     stage?.destroy();
     stage = null;
@@ -1659,6 +1796,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
 
     stage.on("wheel", onWheel);
     stage.on("mousedown", onStageMouseDown);
+    stage.on("dblclick dbltap", onStageDblClick);
     stage.on("contextmenu", onStageContextMenu);
     window.addEventListener("mousemove", onWindowMouseMove);
     window.addEventListener("mouseup", onWindowMouseUp);
