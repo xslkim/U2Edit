@@ -37,6 +37,15 @@ import {
   topHitId,
   type CanvasAabb,
 } from "./nodeHit";
+import {
+  collectSiblingAlignmentLines,
+  snapDragUnionBox,
+  snapResizeCenterPivotCorner,
+  snapResizeTopLeftPivot,
+  snapThresholdCanvasUnits,
+  unionWorldBoxes,
+  worldAabbOfNode,
+} from "./guides";
 import { applyWorldAabbToNode, resizeWorldAabbByPointer } from "./resizeMath";
 import {
   buildSelectionOverlayLayer,
@@ -668,10 +677,56 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
   /** T1.13：悬停命中（平移/拖拽中由 updateContainerCursor 覆盖） */
   let hoverCursor = "";
 
+  /** T2.6 对齐参考线（水平红 / 垂直绿） */
+  let alignmentGuideGroup: Konva.Group | null = null;
+
+  const clearAlignmentGuides = (): void => {
+    alignmentGuideGroup?.destroy();
+    alignmentGuideGroup = null;
+    mainLayer?.batchDraw();
+  };
+
+  const paintAlignmentGuides = (verticalX: number[], horizontalY: number[]): void => {
+    clearAlignmentGuides();
+    if (verticalX.length === 0 && horizontalY.length === 0) {
+      return;
+    }
+    if (!world) {
+      return;
+    }
+    const cw = project.meta.canvasWidth;
+    const ch = project.meta.canvasHeight;
+    const g = new Konva.Group({ listening: false });
+    for (const y of horizontalY) {
+      g.add(
+        new Konva.Line({
+          points: [0, y, cw, y],
+          stroke: "#ef4444",
+          strokeWidth: 1,
+          listening: false,
+        }),
+      );
+    }
+    for (const x of verticalX) {
+      g.add(
+        new Konva.Line({
+          points: [x, 0, x, ch],
+          stroke: "#22c55e",
+          strokeWidth: 1,
+          listening: false,
+        }),
+      );
+    }
+    world.add(g);
+    alignmentGuideGroup = g;
+    mainLayer?.batchDraw();
+  };
+
   const resetResize = (): void => {
     resizeActive = false;
     resizeNodeId = null;
     resizeSnapshot = null;
+    clearAlignmentGuides();
   };
 
   const resetNodeDrag = (): void => {
@@ -681,6 +736,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     nodeDragStartCanvas = null;
     nodeDragIds = [];
     nodeDragSnapshots = new Map();
+    clearAlignmentGuides();
   };
 
   const rootPanelId = (): string | null => project.nodes[0]?.id ?? null;
@@ -1056,7 +1112,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
         return;
       }
       const cur = stageToCanvas(p.x, p.y);
-      const newBox = resizeWorldAabbByPointer(
+      let newBox = resizeWorldAabbByPointer(
         resizeStartWorldBox,
         resizeHandle,
         cur.x,
@@ -1065,9 +1121,28 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
         resizeAspect,
         resizeSnapshot.pivot,
       );
+      let gvx: number[] = [];
+      let ghy: number[] = [];
+      if (!e.shiftKey) {
+        const isCorner =
+          resizeHandle === 0 || resizeHandle === 2 || resizeHandle === 5 || resizeHandle === 7;
+        const { verticalX, horizontalY } = collectSiblingAlignmentLines(project, new Set([resizeNodeId]));
+        const thresh = snapThresholdCanvasUnits(viewScale);
+        if (resizeSnapshot.pivot === "center" && isCorner) {
+          const r = snapResizeCenterPivotCorner(newBox, verticalX, horizontalY, thresh);
+          newBox = r.box;
+          gvx = r.guideVerticalX;
+          ghy = r.guideHorizontalY;
+        } else if (!(resizeSnapshot.pivot === "center" && isCorner)) {
+          const r = snapResizeTopLeftPivot(newBox, resizeHandle, verticalX, horizontalY, thresh);
+          newBox = r.box;
+          gvx = r.guideVerticalX;
+          ghy = r.guideHorizontalY;
+        }
+      }
       applyWorldAabbToNode(project, resizeNodeId, newBox);
       rebuildContent();
-      updateSelectionOverlay();
+      paintAlignmentGuides(gvx, ghy);
       hoverCursor = cursorCssForHandleIndex(resizeHandle);
       updateContainerCursor();
       return;
@@ -1098,6 +1173,10 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
             dx = 0;
           }
         }
+        let adjustX = 0;
+        let adjustY = 0;
+        let gvx: number[] = [];
+        let ghy: number[] = [];
         for (const id of nodeDragIds) {
           const snap = nodeDragSnapshots.get(id);
           const f = findNode(project, id);
@@ -1107,7 +1186,33 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
           f.node.x = snap.x + dx;
           f.node.y = snap.y + dy;
         }
+        const boxes: CanvasAabb[] = [];
+        for (const id of nodeDragIds) {
+          const b = worldAabbOfNode(project, id);
+          if (b) {
+            boxes.push(b);
+          }
+        }
+        const union = unionWorldBoxes(boxes);
+        if (union) {
+          const { verticalX, horizontalY } = collectSiblingAlignmentLines(project, new Set(nodeDragIds));
+          const r = snapDragUnionBox(union, verticalX, horizontalY, snapThresholdCanvasUnits(viewScale));
+          adjustX = r.adjustX;
+          adjustY = r.adjustY;
+          gvx = r.guideVerticalX;
+          ghy = r.guideHorizontalY;
+        }
+        for (const id of nodeDragIds) {
+          const snap = nodeDragSnapshots.get(id);
+          const f = findNode(project, id);
+          if (!snap || !f) {
+            continue;
+          }
+          f.node.x = snap.x + dx + adjustX;
+          f.node.y = snap.y + dy + adjustY;
+        }
         rebuildContent();
+        paintAlignmentGuides(gvx, ghy);
         updateContainerCursor();
       }
       return;
@@ -1416,6 +1521,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
       return;
     }
     world.destroyChildren();
+    alignmentGuideGroup = null;
     const cw = project.meta.canvasWidth;
     const ch = project.meta.canvasHeight;
     world.add(
