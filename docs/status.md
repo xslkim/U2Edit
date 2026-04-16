@@ -9,7 +9,7 @@
 
 ## 0. 当前阶段说明（v1.1 新增）
 
-- **M0 进度**：T0.1–T0.3 已实现并 `passed`（见 §4）；**T0.6** 已 `dev_done`，待 QA 验收；T0.4、T0.5、T0.7 仍 `pending`。
+- **M0 进度**：T0.1–T0.3、**T0.6** 已实现并 `passed`（见 §4）；T0.4、T0.5、T0.7 仍 `pending`。
 - **QA Agent 当前不进入 `testing` 状态**，避免把"未实现"误判为"实现错误"。QA 在本阶段做：
   1. 测试方案与文档审查（已产出本轮歧义清单）
   2. 准备 fixture（示例 YAML、压测脚本）与基线快照
@@ -82,13 +82,13 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 
 | 里程碑 | 状态 | 任务总数 | 完成数 | 进度 |
 |--------|------|---------|--------|------|
-| M0 — 工程搭建与 POC | `in_progress` | 7 | 3 | 43% |
+| M0 — 工程搭建与 POC | `in_progress` | 7 | 4 | 57% |
 | M1 — 基础编辑器 | `pending` | 14 | 0 | 0% |
 | M2 — 完整控件 & 资源 & 编辑操作 | `pending` | 12 | 0 | 0% |
 | M3 — Unity 导出 | `pending` | 3 | 0 | 0% |
 | M4 — Unreal 导出 | `pending` | 2 | 0 | 0% |
 | M5 — 打磨 | `pending` | 3 | 0 | 0% |
-| **总计** | | **41** | **3** | 7% |
+| **总计** | | **41** | **4** | 10% |
 
 ---
 
@@ -118,7 +118,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | T0.3 | 文件监听方案验证 | T0.2 | `passed` | 0 | e178c33 | [qa-reports/T0.3.md](../qa-reports/T0.3.md) | D2 已更新 |
 | T0.4 | Unity C# Editor 脚本 POC | — | `pending` | 0 | | | 独立引擎工程；**QA 测试暂缓**（见第 0 节） |
 | T0.5 | Unreal Python 脚本 POC ⚠️ | — | `pending` | 0 | | | **关键风险点**，结论填入 D1；**QA 测试暂缓** |
-| T0.6 | Konva.js 画布性能 POC | T0.1 | `dev_done` | 0 | 06ffd32 | | D3 已更新；待 QA |
+| T0.6 | Konva.js 画布性能 POC | T0.1 | `passed` | 0 | 06ffd32 | [qa-reports/T0.6.md](../qa-reports/T0.6.md) | D3 已更新 |
 | T0.7 | 中文 IME 输入验证 | T0.1 | `pending` | 0 | | | |
 
 ### M1 — 基础编辑器
@@ -292,6 +292,7 @@ QA 验证报告存放于 `qa-reports/` 目录，命名规则：`T{id}.md`
 | T0.1 | [qa-reports/T0.1.md](../qa-reports/T0.1.md) | Pass（含人工补测项） | 2026-04-15 |
 | T0.2 | [qa-reports/T0.2.md](../qa-reports/T0.2.md) | Pass（含人工补测项） | 2026-04-15 |
 | T0.3 | [qa-reports/T0.3.md](../qa-reports/T0.3.md) | Pass（含人工补测项） | 2026-04-15 |
+| T0.6 | [qa-reports/T0.6.md](../qa-reports/T0.6.md) | Pass（含人工补测项） | 2026-04-16 |
 
 > QA Agent 每验证完一个任务，在此表格追加一行。
 
