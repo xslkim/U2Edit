@@ -1,5 +1,5 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { exists, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 
 /**
  * 打开目录选择对话框，返回绝对路径或取消时为 null。
@@ -24,4 +24,9 @@ export async function writeText(path: string, content: string): Promise<void> {
 
 export async function existsPath(path: string): Promise<boolean> {
   return exists(path);
+}
+
+/** 创建目录（已存在时不抛错，`recursive` 同 mkdir -p） */
+export async function ensureDir(path: string): Promise<void> {
+  await mkdir(path, { recursive: true });
 }

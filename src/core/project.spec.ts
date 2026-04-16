@@ -3,6 +3,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import {
+  createBlankProject,
+  joinProjectPath,
   parseProjectYaml,
   stringifyProject,
   validate,
@@ -157,5 +159,23 @@ describe("T1.2 project YAML", () => {
       nodes: [createDefaultText({ id: "root_panel", name: "T", x: 0, y: 0 })],
     };
     expect(validate(badRoot).some((e) => e.code === "ROOT_TYPE")).toBe(true);
+  });
+});
+
+describe("T1.6 新建项目数据", () => {
+  it("createBlankProject：meta.name、单根 panel、assets 空、export 分辨率", () => {
+    const p = createBlankProject({ name: "MyGame", canvasWidth: 800, canvasHeight: 600 });
+    expect(p.meta.name).toBe("MyGame");
+    expect(p.meta.canvasWidth).toBe(800);
+    expect(p.meta.canvasHeight).toBe(600);
+    expect(p.assets).toEqual([]);
+    expect(p.nodes).toHaveLength(1);
+    expect(p.nodes[0].type).toBe("panel");
+    expect(p.nodes[0].id).toBe("root_panel");
+    expect(p.export.unity.referenceResolution).toEqual([800, 600]);
+  });
+
+  it("joinProjectPath：Windows 风格目录使用反斜杠", () => {
+    expect(joinProjectPath("E:\\foo", "project.yaml")).toBe("E:\\foo\\project.yaml");
   });
 });

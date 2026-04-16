@@ -16,6 +16,7 @@ import type {
   TextNode,
   ToggleNode,
 } from "./schema";
+import { createDefaultPanel, CURRENT_SCHEMA_VERSION } from "./schema";
 import { UnsupportedSchemaError } from "./errors";
 import { getReadableSchemaCap } from "./schemaVersionPolicy";
 
@@ -54,10 +55,64 @@ const NODE_TYPES = new Set<string>([
   "inputField",
 ]);
 
-function joinDirFile(dir: string, file: string): string {
+/** 项目目录下的相对路径拼接（保留 Windows 反斜杠） */
+export function joinProjectPath(dir: string, file: string): string {
   const d = dir.replace(/[/\\]+$/, "");
   const sep = d.includes("\\") ? "\\" : "/";
   return `${d}${sep}${file}`;
+}
+
+function joinDirFile(dir: string, file: string): string {
+  return joinProjectPath(dir, file);
+}
+
+/** 新建项目时 `export` 占位（与 T1.2 fixture 一致结构） */
+export const DEFAULT_EXPORT_TEMPLATE: ExportConfig = {
+  unity: {
+    assetRootPath: "Assets/UI",
+    defaultFont: "Assets/Fonts/Default.asset",
+    fontSizeScale: 1,
+    renderMode: "ScreenSpaceOverlay",
+    referenceResolution: [1920, 1080],
+    screenMatchMode: 0.5,
+  },
+  unreal: {
+    assetRootPath: "/Game/UI",
+    defaultFont: "/Game/Fonts/Default",
+    fontSizeScale: 1,
+  },
+};
+
+/**
+ * 创建空白可保存项目（单根 panel，空 assets）。
+ */
+export function createBlankProject(opts: {
+  name: string;
+  canvasWidth: number;
+  canvasHeight: number;
+}): Project {
+  const root = createDefaultPanel({
+    id: "root_panel",
+    name: "Root",
+    x: 0,
+    y: 0,
+    width: opts.canvasWidth,
+    height: opts.canvasHeight,
+    children: [],
+  });
+  const exportCfg = structuredClone(DEFAULT_EXPORT_TEMPLATE);
+  exportCfg.unity.referenceResolution = [opts.canvasWidth, opts.canvasHeight];
+  return {
+    meta: {
+      name: opts.name.trim(),
+      schemaVersion: CURRENT_SCHEMA_VERSION,
+      canvasWidth: opts.canvasWidth,
+      canvasHeight: opts.canvasHeight,
+    },
+    assets: [],
+    nodes: [root],
+    export: exportCfg,
+  };
 }
 
 function isRecord(x: unknown): x is Record<string, unknown> {

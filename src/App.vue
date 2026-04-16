@@ -1,10 +1,23 @@
 <script setup lang="ts">
+import { message } from "@tauri-apps/plugin-dialog";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import T06KonvaPerfPoc from "./poc/T06KonvaPerfPoc.vue";
 import T07KonvaImePoc from "./poc/T07KonvaImePoc.vue";
 import * as fileService from "./core/fileService";
 import * as fileWatcher from "./core/fileWatcher";
-import { initWindowGuard, setWindowDirty } from "./core/windowGuard";
+import {
+  createBlankProject,
+  joinProjectPath,
+  loadProject,
+  saveProject,
+} from "./core/project";
+import type { Project } from "./core/schema";
+import {
+  initWindowGuard,
+  setCloseSaveHandler,
+  setWindowDirty,
+} from "./core/windowGuard";
+import { applyWindowTitle } from "./core/windowTitle";
 
 const TREE_MIN = 150;
 const TREE_MAX = 500;
@@ -17,6 +30,171 @@ const PROPS_H_MIN = 80;
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
+
+function directoryBasename(path: string): string {
+  const s = path.replace(/[/\\]+$/, "");
+  const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\"));
+  return (i >= 0 ? s.slice(i + 1) : s) || "Project";
+}
+
+// —— T1.6 项目 ——
+
+const loadedProject = ref<Project | null>(null);
+const projectDir = ref<string | null>(null);
+const isDirty = ref(false);
+
+const showNewDialog = ref(false);
+const newWizard = ref({
+  dir: null as string | null,
+  name: "",
+  nameTouched: false,
+  w: 1920,
+  h: 1080,
+});
+
+function syncWindowTitleFromState(): void {
+  void applyWindowTitle(loadedProject.value?.meta.name ?? null, isDirty.value);
+}
+
+function setDirty(v: boolean): void {
+  isDirty.value = v;
+  setWindowDirty(v);
+  syncWindowTitleFromState();
+}
+
+async function performSave(): Promise<void> {
+  const dir = projectDir.value;
+  const p = loadedProject.value;
+  if (!dir || !p) {
+    await message("没有可保存的项目或目录。", { title: "LWB UI Editor", kind: "warning" });
+    throw new Error("nothing to save");
+  }
+  await saveProject(dir, p);
+  setDirty(false);
+}
+
+/** 关闭窗口时选「保存」：有项目则写盘；仅 POC dirty 则只清标记 */
+async function saveForCloseGuard(): Promise<void> {
+  if (loadedProject.value && projectDir.value) {
+    await saveProject(projectDir.value, loadedProject.value);
+    setDirty(false);
+    return;
+  }
+  useDirtyFlag.value = false;
+  setWindowDirty(false);
+  void applyWindowTitle(null, false);
+}
+
+async function onSaveProject(): Promise<void> {
+  try {
+    await performSave();
+  } catch {
+    /* message 已提示 */
+  }
+}
+
+async function onOpenProject(): Promise<void> {
+  const dir = await fileService.pickDirectory();
+  if (!dir) {
+    return;
+  }
+  const yaml = joinProjectPath(dir, "project.yaml");
+  if (!(await fileService.existsPath(yaml))) {
+    await message("所选目录不包含 project.yaml。", { title: "LWB UI Editor", kind: "error" });
+    return;
+  }
+  try {
+    const { project } = await loadProject(dir);
+    loadedProject.value = project;
+    projectDir.value = dir;
+    setDirty(false);
+    log(`已打开: ${dir}`);
+  } catch (e) {
+    await message(String(e instanceof Error ? e.message : e), { title: "打开失败", kind: "error" });
+  }
+}
+
+function openNewProjectDialog(): void {
+  newWizard.value = {
+    dir: null,
+    name: "",
+    nameTouched: false,
+    w: 1920,
+    h: 1080,
+  };
+  showNewDialog.value = true;
+}
+
+async function pickNewProjectDirectory(): Promise<void> {
+  const d = await fileService.pickDirectory();
+  if (!d) {
+    return;
+  }
+  newWizard.value.dir = d;
+  if (!newWizard.value.nameTouched) {
+    newWizard.value.name = directoryBasename(d);
+  }
+}
+
+function onNewProjectNameInput(): void {
+  newWizard.value.nameTouched = true;
+}
+
+async function confirmNewProject(): Promise<void> {
+  const w = newWizard.value;
+  if (!w.dir) {
+    await message("请选择项目目录。", { title: "新建项目", kind: "warning" });
+    return;
+  }
+  if (!w.name.trim()) {
+    await message("项目名称不能为空。", { title: "新建项目", kind: "warning" });
+    return;
+  }
+  const yaml = joinProjectPath(w.dir, "project.yaml");
+  if (await fileService.existsPath(yaml)) {
+    await message("该目录下已存在 project.yaml。", { title: "新建项目", kind: "error" });
+    return;
+  }
+  try {
+    await fileService.ensureDir(joinProjectPath(w.dir, "assets"));
+    const proj = createBlankProject({
+      name: w.name.trim(),
+      canvasWidth: w.w,
+      canvasHeight: w.h,
+    });
+    await saveProject(w.dir, proj);
+    loadedProject.value = proj;
+    projectDir.value = w.dir;
+    setDirty(false);
+    showNewDialog.value = false;
+    log(`已新建: ${w.dir}`);
+  } catch (e) {
+    await message(String(e instanceof Error ? e.message : e), { title: "新建失败", kind: "error" });
+  }
+}
+
+function cancelNewProject(): void {
+  showNewDialog.value = false;
+}
+
+function touchProjectDirtyDemo(): void {
+  const p = loadedProject.value;
+  if (!p) {
+    void message("请先新建或打开项目。", { title: "提示", kind: "info" });
+    return;
+  }
+  p.meta.canvasWidth += 1;
+  setDirty(true);
+}
+
+function onGlobalKeydown(e: KeyboardEvent): void {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+    e.preventDefault();
+    void onSaveProject();
+  }
+}
+
+const statusSaveLabel = computed(() => (isDirty.value ? "● 未保存" : "已保存"));
 
 const logLines = ref<string[]>([]);
 const selectedDir = ref<string | null>(null);
@@ -83,10 +261,17 @@ const view = ref<"main" | "t06" | "t07">("main");
 
 const useDirtyFlag = ref(false);
 
+/** T0.2 POC：无项目时仍可模拟窗口 dirty（仅测关闭拦截） */
 function toggleDirty(): void {
+  if (loadedProject.value) {
+    setDirty(!isDirty.value);
+    log(`项目 dirty = ${isDirty.value}`);
+    return;
+  }
   const next = !useDirtyFlag.value;
   useDirtyFlag.value = next;
   setWindowDirty(next);
+  void applyWindowTitle(null, next);
   log(`dirty = ${next}（关闭窗口将${next ? "弹出" : "不弹出"}确认）`);
 }
 
@@ -154,12 +339,17 @@ const assetsSectionStyle = computed(() => {
 });
 
 onMounted(() => {
+  setCloseSaveHandler(saveForCloseGuard);
+  window.addEventListener("keydown", onGlobalKeydown);
+  void applyWindowTitle(null, false);
   void initWindowGuard().then((un) => {
     unlistenGuard = un;
   });
 });
 
 onUnmounted(() => {
+  setCloseSaveHandler(null);
+  window.removeEventListener("keydown", onGlobalKeydown);
   unlistenGuard?.();
   roRight.disconnect();
 });
@@ -259,7 +449,15 @@ function startDragPropsSplit(e: PointerEvent): void {
       <header class="toolbar" aria-label="Toolbar">
         <div class="toolbar__brand">
           <span class="toolbar__title">LWB UI Editor</span>
-          <span class="toolbar__hint">T1.5 布局</span>
+          <span class="toolbar__hint">T1.6 项目</span>
+        </div>
+
+        <div class="toolbar__file">
+          <button type="button" class="btn-sm" @click="openNewProjectDialog">新建</button>
+          <button type="button" class="btn-sm" @click="onOpenProject">打开</button>
+          <button type="button" class="btn-sm" :disabled="!loadedProject" @click="onSaveProject">
+            保存
+          </button>
         </div>
 
         <div class="toolbar__toggles" role="toolbar" aria-label="面板显示">
@@ -325,8 +523,21 @@ function startDragPropsSplit(e: PointerEvent): void {
         />
 
         <main class="canvas" aria-label="Canvas">
-          <div class="canvas__label">Canvas 画布</div>
-          <p class="canvas__hint">中央区域随窗口伸缩；Konva 集成见 T1.7</p>
+          <template v-if="loadedProject">
+            <div class="canvas__label">{{ loadedProject.meta.name }}</div>
+            <p class="canvas__hint">
+              画布 {{ loadedProject.meta.canvasWidth }}×{{ loadedProject.meta.canvasHeight }} ·
+              Konva 见 T1.7
+            </p>
+            <p class="canvas__path">{{ projectDir }}</p>
+            <button type="button" class="btn-sm canvas__demo" @click="touchProjectDirtyDemo">
+              试改画布宽 +1（测未保存 *）
+            </button>
+          </template>
+          <template v-else>
+            <div class="canvas__label">Canvas 画布</div>
+            <p class="canvas__hint">请先使用工具栏「新建」或「打开」加载项目</p>
+          </template>
         </main>
 
         <div
@@ -375,12 +586,51 @@ function startDragPropsSplit(e: PointerEvent): void {
       <footer v-show="showStatus" class="statusbar" aria-label="StatusBar">
         <span>缩放 100%</span>
         <span class="sep">|</span>
-        <span>画布 1920×1080</span>
+        <span>{{
+          loadedProject
+            ? `画布 ${loadedProject.meta.canvasWidth}×${loadedProject.meta.canvasHeight}`
+            : "画布 —"
+        }}</span>
         <span class="sep">|</span>
         <span>选中 0</span>
         <span class="sep">|</span>
-        <span>已保存</span>
+        <span>{{ statusSaveLabel }}</span>
       </footer>
+
+      <div v-if="showNewDialog" class="modal-overlay" role="presentation" @click.self="cancelNewProject">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="new-proj-title">
+          <h2 id="new-proj-title" class="modal__title">新建项目</h2>
+          <div class="modal__row">
+            <span class="modal__label">目录</span>
+            <div class="modal__field">
+              <button type="button" class="btn-sm" @click="pickNewProjectDirectory">选择目录…</button>
+              <span class="modal__path">{{ newWizard.dir ?? "未选择" }}</span>
+            </div>
+          </div>
+          <div class="modal__row">
+            <label class="modal__label" for="np-name">项目名称</label>
+            <input
+              id="np-name"
+              v-model="newWizard.name"
+              class="modal__input"
+              type="text"
+              autocomplete="off"
+              placeholder="与目录名一致或自定义"
+              @input="onNewProjectNameInput"
+            />
+          </div>
+          <div class="modal__row modal__row--grid">
+            <label class="modal__label" for="np-w">宽</label>
+            <input id="np-w" v-model.number="newWizard.w" class="modal__input" type="number" min="1" />
+            <label class="modal__label" for="np-h">高</label>
+            <input id="np-h" v-model.number="newWizard.h" class="modal__input" type="number" min="1" />
+          </div>
+          <div class="modal__actions">
+            <button type="button" class="btn-sm" @click="cancelNewProject">取消</button>
+            <button type="button" class="btn-sm btn-sm--primary" @click="confirmNewProject">创建</button>
+          </div>
+        </div>
+      </div>
 
       <details class="dev-drawer">
         <summary>T0.2 / T0.3 开发工具（文件与监听）</summary>
@@ -500,6 +750,13 @@ body,
   min-height: 40px;
 }
 
+.toolbar__file {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
 .toolbar__brand {
   display: flex;
   align-items: baseline;
@@ -552,6 +809,21 @@ body,
   border: 1px solid #d4d4d8;
   border-radius: 4px;
   background: #fff;
+}
+
+.btn-sm:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-sm--primary {
+  background: #2563eb;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+.btn-sm--primary:hover {
+  background: #1d4ed8;
 }
 
 .workspace {
@@ -681,6 +953,18 @@ body,
   opacity: 0.85;
 }
 
+.canvas__path {
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  opacity: 0.75;
+  word-break: break-all;
+  max-width: 100%;
+}
+
+.canvas__demo {
+  margin-top: 0.75rem;
+}
+
 .statusbar {
   flex: none;
   height: 24px;
@@ -703,6 +987,82 @@ body,
   border-top: 1px solid #d4d4d8;
   background: #fafafa;
   font-size: 0.8rem;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal {
+  width: 100%;
+  max-width: 420px;
+  background: #fafafa;
+  border: 1px solid #d4d4d8;
+  border-radius: 8px;
+  padding: 1rem 1.1rem;
+  box-shadow: 0 10px 40px rgb(0 0 0 / 0.2);
+}
+
+.modal__title {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #18181b;
+}
+
+.modal__row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.65rem;
+}
+
+.modal__row--grid {
+  display: grid;
+  grid-template-columns: auto 1fr auto 1fr;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+}
+
+.modal__label {
+  font-size: 0.8rem;
+  color: #52525b;
+}
+
+.modal__field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.modal__path {
+  font-size: 0.75rem;
+  color: #3f3f46;
+  word-break: break-all;
+}
+
+.modal__input {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.85rem;
+  border: 1px solid #d4d4d8;
+  border-radius: 4px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
 }
 
 .dev-drawer summary {
