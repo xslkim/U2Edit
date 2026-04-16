@@ -127,7 +127,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 |----|---------|------|------|-------|--------|------|------|
 | T1.1 | YAML Schema 类型定义 | T0.1 | `passed` | 0 | c9704e8 | [qa-reports/T1.1.md](../qa-reports/T1.1.md) | |
 | T1.2 | YAML 读写与校验 | T1.1, T0.2 | `passed` | 0 | a10a094 | [qa-reports/T1.2.md](../qa-reports/T1.2.md) | |
-| T1.3 | Schema 版本升级框架 | T1.2 | `passed` | 0 | 701fc90 | [qa-reports/T1.3.md](../qa-reports/T1.3.md) | |
+| T1.3 | Schema 版本升级框架 | T1.2 | `passed` | 0 | afcd967 | [qa-reports/T1.3.md](../qa-reports/T1.3.md) | |
 | T1.4 | 命令模式撤销重做框架 | T1.1 | `pending` | 0 | | | |
 | T1.5 | 主窗口四面板布局 | T0.1 | `pending` | 0 | | | |
 | T1.6 | 新建/打开/保存项目 | T1.2, T1.5 | `pending` | 0 | | | |
