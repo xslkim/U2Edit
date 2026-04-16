@@ -305,6 +305,27 @@ function onCtxReorder(mode: "up" | "down" | "front" | "back"): void {
   commitHistoryCommand(cmd);
 }
 
+/** T2.4：Ctrl+] / Ctrl+[（Shift=置顶/置底），作用于当前选中第一个节点 */
+function tryReorderHotkey(mode: "up" | "down" | "front" | "back"): void {
+  const p = loadedProject.value;
+  if (!p) {
+    return;
+  }
+  const rid = rootPanelId();
+  const sid = [...selectionStore.selectedIds.value][0];
+  if (!rid || !sid || sid === rid) {
+    return;
+  }
+  if (isNodeLocked(sid)) {
+    return;
+  }
+  const cmd = reorderCommandForNode(p, sid, mode);
+  if (!cmd) {
+    return;
+  }
+  commitHistoryCommand(cmd);
+}
+
 function onCtxToggleLock(): void {
   const id = ctxTargetNodeId.value;
   const rid = rootPanelId();
@@ -650,6 +671,19 @@ function onGlobalKeydown(e: KeyboardEvent): void {
           return;
         }
         selectionStore.setAll(new Set(idsDirectChildren(p, cid)));
+        return;
+      }
+      if (e.code === "BracketRight" || e.code === "BracketLeft") {
+        e.preventDefault();
+        const mode =
+          e.code === "BracketRight"
+            ? e.shiftKey
+              ? "front"
+              : "up"
+            : e.shiftKey
+              ? "back"
+              : "down";
+        tryReorderHotkey(mode);
         return;
       }
     }

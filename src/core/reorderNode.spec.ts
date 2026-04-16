@@ -46,7 +46,7 @@ describe("reorderNode", () => {
     expect(reorderCommandForNode(p, "root_panel", "front")).toBeNull();
   });
 
-  it("置顶：子节点移到 children 末尾", () => {
+  it("T2.4 用例1：三节点 A/B/C 选 B 置顶 → [A,C,B]", () => {
     const p = projectWithThreeTexts();
     const cmd = reorderCommandForNode(p, "text_2", "front");
     expect(cmd).not.toBeNull();
@@ -55,13 +55,49 @@ describe("reorderNode", () => {
     expect(list).toEqual(["text_1", "text_3", "text_2"]);
   });
 
-  it("已在顶时上移无效", () => {
+  it("T2.4 用例2：置底后节点在 children 首位", () => {
+    const p = projectWithThreeTexts();
+    const cmd = reorderCommandForNode(p, "text_2", "back");
+    expect(cmd).not.toBeNull();
+    cmd!.do();
+    expect(getChildList(p, "root_panel").map((n) => n.id)).toEqual([
+      "text_2",
+      "text_1",
+      "text_3",
+    ]);
+  });
+
+  it("T2.4 用例3：上移为与下一 sibling 交换（向渲染顶层）", () => {
+    const p = projectWithThreeTexts();
+    const cmd = reorderCommandForNode(p, "text_1", "up");
+    expect(cmd).not.toBeNull();
+    cmd!.do();
+    expect(getChildList(p, "root_panel").map((n) => n.id)).toEqual([
+      "text_2",
+      "text_1",
+      "text_3",
+    ]);
+  });
+
+  it("T2.4 用例3：下移为与上一 sibling 交换", () => {
+    const p = projectWithThreeTexts();
+    const cmd = reorderCommandForNode(p, "text_3", "down");
+    expect(cmd).not.toBeNull();
+    cmd!.do();
+    expect(getChildList(p, "root_panel").map((n) => n.id)).toEqual([
+      "text_1",
+      "text_3",
+      "text_2",
+    ]);
+  });
+
+  it("T2.4 用例4：已在顶时上移无效", () => {
     const p = projectWithThreeTexts();
     const cmd = reorderCommandForNode(p, "text_3", "up");
     expect(cmd).toBeNull();
   });
 
-  it("已在底时下移无效", () => {
+  it("T2.4 用例4：已在底时下移无效", () => {
     const p = projectWithThreeTexts();
     const cmd = reorderCommandForNode(p, "text_1", "down");
     expect(cmd).toBeNull();
