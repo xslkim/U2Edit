@@ -131,7 +131,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | T1.4 | 命令模式撤销重做框架 | T1.1 | `passed` | 0 | 90c88e3 | [qa-reports/T1.4.md](../qa-reports/T1.4.md) | |
 | T1.5 | 主窗口四面板布局 | T0.1 | `passed` | 0 | 6bc6aee | [qa-reports/T1.5.md](../qa-reports/T1.5.md) | |
 | T1.6 | 新建/打开/保存项目 | T1.2, T1.5 | `passed` | 0 | 3aa6c17 | [qa-reports/T1.6.md](../qa-reports/T1.6.md) | |
-| T1.7 | 画布基础渲染（Konva 集成） | T1.5, T1.6 | `dev_done` | 0 | ee186a6 | [qa-reports/T1.7.md](../qa-reports/T1.7.md) | `renderer.ts` + `EditorCanvas.vue`；真机视觉待 QA |
+| T1.7 | 画布基础渲染（Konva 集成） | T1.5, T1.6 | `dev_done` | 0 | c60d1fc | [qa-reports/T1.7.md](../qa-reports/T1.7.md) | `renderer.ts` + `EditorCanvas.vue`；真机视觉待 QA |
 | T1.8 | 画布缩放与平移 | T1.7 | `pending` | 0 | | | 含 StatusBar 四项信息 |
 | T1.9 | 单选与多选 | T1.7 | `pending` | 0 | | | |
 | T1.10 | 节点树面板（基础） | T1.9 | `pending` | 0 | | | |
@@ -300,6 +300,7 @@ QA 验证报告存放于 `qa-reports/` 目录，命名规则：`T{id}.md`
 | T1.4 | [qa-reports/T1.4.md](../qa-reports/T1.4.md) | Pass | 2026-04-16 |
 | T1.5 | [qa-reports/T1.5.md](../qa-reports/T1.5.md) | Pass | 2026-04-16 |
 | T1.6 | [qa-reports/T1.6.md](../qa-reports/T1.6.md) | Pass | 2026-04-16 |
+| T1.7 | [qa-reports/T1.7.md](../qa-reports/T1.7.md) | Pass（自动化 + 结构交付） | 2026-04-16 |
 
 > QA Agent 每验证完一个任务，在此表格追加一行。
 
