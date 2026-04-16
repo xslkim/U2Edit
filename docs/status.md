@@ -118,7 +118,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | T0.3 | 文件监听方案验证 | T0.2 | `passed` | 0 | e178c33 | [qa-reports/T0.3.md](../qa-reports/T0.3.md) | D2 已更新 |
 | T0.4 | Unity C# Editor 脚本 POC | — | `pending` | 0 | | | 独立引擎工程；**QA 测试暂缓**（见第 0 节） |
 | T0.5 | Unreal Python 脚本 POC ⚠️ | — | `pending` | 0 | | | **关键风险点**，结论填入 D1；**QA 测试暂缓** |
-| T0.6 | Konva.js 画布性能 POC | T0.1 | `dev_done` | 0 | 4885dc4 | | D3 已更新；待 QA |
+| T0.6 | Konva.js 画布性能 POC | T0.1 | `dev_done` | 0 | 06ffd32 | | D3 已更新；待 QA |
 | T0.7 | 中文 IME 输入验证 | T0.1 | `pending` | 0 | | | |
 
 ### M1 — 基础编辑器
