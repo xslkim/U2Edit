@@ -104,6 +104,8 @@ export interface MountedCanvas {
   getStage(): Konva.Stage | null;
   /** 当前视口中心在根画布坐标系中的点（与 stage 坐标一致） */
   getViewportCenterCanvas(): { x: number; y: number } | null;
+  /** T2.11：画布拖拽/平移/resize 时延后外部 YAML 冲突对话框 */
+  isBlockingYamlConflictPrompt(): boolean;
 }
 
 const PAD = 16;
@@ -1857,6 +1859,11 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     return stageToCanvas(stage.width() / 2, stage.height() / 2);
   };
 
+  /** T2.11：画布拖拽/缩放进行时延后「外部 YAML 变更」对话框 */
+  const isBlockingYamlConflictPrompt = (): boolean => {
+    return panDragging || nodeDragPending || nodeDragActive || resizeActive;
+  };
+
   return {
     destroy,
     redraw,
@@ -1865,5 +1872,6 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     ensureNodeVisible,
     getStage: () => stage,
     getViewportCenterCanvas,
+    isBlockingYamlConflictPrompt,
   };
 }

@@ -88,10 +88,15 @@ function getViewportCenterCanvas(): { x: number; y: number } | null {
   return api?.getViewportCenterCanvas() ?? null;
 }
 
+function isBlockingYamlConflictPrompt(): boolean {
+  return api?.isBlockingYamlConflictPrompt?.() ?? false;
+}
+
 defineExpose({
   ensureNodeVisible,
   rebuildScene,
   getViewportCenterCanvas,
+  isBlockingYamlConflictPrompt,
 });
 
 onMounted(async () => {

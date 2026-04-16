@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { message } from "@tauri-apps/plugin-dialog";
+import { confirm, message } from "@tauri-apps/plugin-dialog";
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import T06KonvaPerfPoc from "./poc/T06KonvaPerfPoc.vue";
 import T07KonvaImePoc from "./poc/T07KonvaImePoc.vue";
@@ -483,6 +483,17 @@ watch(loadedProject, (p) => {
 });
 
 watch(
+  () => [projectDir.value, loadedProject.value] as const,
+  async ([dir, proj]) => {
+    if (dir && proj) {
+      await startProjectYamlWatcher(dir);
+    } else {
+      await stopProjectYamlWatcher();
+    }
+  },
+);
+
+watch(
   () => [...selectionStore.selectedIds.value].sort().join(","),
   () => {
     const ids = [...selectionStore.selectedIds.value];
@@ -520,8 +531,154 @@ async function performSave(): Promise<void> {
     await message("没有可保存的项目或目录。", { title: "LWB UI Editor", kind: "warning" });
     throw new Error("nothing to save");
   }
+  suppressProjectYamlWatchUntil = Date.now() + 1600;
   await saveProject(dir, p);
   setDirty(false);
+}
+
+// —— T2.11：监听 project.yaml 外部变更 ——
+
+function isTauriRuntime(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+let yamlWatchPath: string | null = null;
+let suppressProjectYamlWatchUntil = 0;
+let yamlExternalChangeTimer: ReturnType<typeof setTimeout> | null = null;
+let yamlExternalChangePending = false;
+let yamlConflictDialogActive = false;
+
+async function stopProjectYamlWatcher(): Promise<void> {
+  if (yamlWatchPath) {
+    await fileWatcher.unwatch(yamlWatchPath);
+    yamlWatchPath = null;
+  }
+  if (yamlExternalChangeTimer != null) {
+    clearTimeout(yamlExternalChangeTimer);
+    yamlExternalChangeTimer = null;
+  }
+  yamlExternalChangePending = false;
+}
+
+function shouldDeferProjectYamlPrompt(): boolean {
+  if (isEditableDomTarget(document.activeElement)) {
+    return true;
+  }
+  return editorCanvasRef.value?.isBlockingYamlConflictPrompt?.() ?? false;
+}
+
+async function startProjectYamlWatcher(dir: string): Promise<void> {
+  await stopProjectYamlWatcher();
+  if (!isTauriRuntime()) {
+    return;
+  }
+  const path = joinProjectPath(dir, "project.yaml");
+  yamlWatchPath = path;
+  await fileWatcher.watch(path, () => {
+    onProjectYamlFileExternalTouch();
+  });
+}
+
+function onProjectYamlFileExternalTouch(): void {
+  if (Date.now() < suppressProjectYamlWatchUntil) {
+    return;
+  }
+  if (!loadedProject.value || !projectDir.value) {
+    return;
+  }
+  yamlExternalChangePending = true;
+  if (yamlExternalChangeTimer != null) {
+    clearTimeout(yamlExternalChangeTimer);
+  }
+  yamlExternalChangeTimer = setTimeout(() => {
+    yamlExternalChangeTimer = null;
+    void flushProjectYamlConflictPrompt();
+  }, 450);
+}
+
+async function flushProjectYamlConflictPrompt(): Promise<void> {
+  if (yamlConflictDialogActive) {
+    return;
+  }
+  if (!yamlExternalChangePending || !loadedProject.value || !projectDir.value) {
+    return;
+  }
+  while (shouldDeferProjectYamlPrompt()) {
+    await new Promise<void>((r) => setTimeout(r, 120));
+    if (!loadedProject.value || !projectDir.value) {
+      return;
+    }
+  }
+  yamlConflictDialogActive = true;
+  try {
+    yamlExternalChangePending = false;
+    await runProjectYamlConflictDialog();
+  } finally {
+    yamlConflictDialogActive = false;
+  }
+  if (yamlExternalChangePending && loadedProject.value && projectDir.value) {
+    void flushProjectYamlConflictPrompt();
+  }
+}
+
+async function runProjectYamlConflictDialog(): Promise<void> {
+  const dir = projectDir.value!;
+  if (!isDirty.value) {
+    const reload = await confirm(
+      "磁盘上的 project.yaml 已在外部修改。是否重新加载以使用磁盘上的最新内容？点「取消」则忽略外部变更。",
+      {
+        title: "外部变更",
+        kind: "warning",
+        okLabel: "重新加载",
+        cancelLabel: "忽略",
+      },
+    );
+    if (reload) {
+      await reloadProjectFromDisk(dir);
+    }
+    return;
+  }
+  const r = await message(
+    "磁盘上的 project.yaml 已在外部修改。重新加载将丢弃您在编辑器中的未保存更改（将丢弃这些修改）。您也可以先保存当前编辑。",
+    {
+      title: "外部变更",
+      kind: "warning",
+      buttons: {
+        yes: "保存我的修改",
+        no: "重新加载",
+        cancel: "取消",
+      },
+    },
+  );
+  if (r === "Cancel") {
+    return;
+  }
+  if (r === "Yes") {
+    try {
+      await performSave();
+    } catch {
+      /* performSave 已提示 */
+    }
+    return;
+  }
+  if (r === "No") {
+    await reloadProjectFromDisk(dir);
+  }
+}
+
+async function reloadProjectFromDisk(dir: string): Promise<void> {
+  try {
+    const { project } = await loadProject(dir);
+    loadedProject.value = project;
+    selectionStore.clear();
+    clearNodeLocks();
+    history.clear();
+    setDirty(false);
+    await nextTick();
+    editorCanvasRef.value?.rebuildScene();
+  } catch (e) {
+    await message(String(e instanceof Error ? e.message : e), { title: "重新加载失败", kind: "error" });
+  }
 }
 
 /** 关闭窗口时选「保存」：有项目则写盘；仅 POC dirty 则只清标记 */
@@ -899,6 +1056,7 @@ onUnmounted(() => {
   window.removeEventListener("keydown", onGlobalKeydown);
   unlistenGuard?.();
   roRight.disconnect();
+  void stopProjectYamlWatcher();
 });
 
 function bindRightObserver(el: unknown): void {
