@@ -148,7 +148,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | T2.2 | 右键菜单（画布 + 节点树） | T2.1, T1.10 | `dev_done` | 0 | 41eef70 | [qa-reports/T2.2.md](../qa-reports/T2.2.md) | `ContextMenu.vue`；`nodeClipboard`；`reorderNode` |
 | T2.3 | 复制粘贴删除 | T2.1, T1.4 | `dev_done` | 0 | 374fd39 | [qa-reports/T2.3.md](../qa-reports/T2.3.md) | Ctrl+C/V/D、Delete、Ctrl+A；`local-offset` 粘贴 |
 | T2.4 | 层级调整 | T2.2, T1.4 | `dev_done` | 0 | e1db62a | [qa-reports/T2.4.md](../qa-reports/T2.4.md) | 右键 T2.2；Ctrl+]/[（Shift 置顶/置底） |
-| T2.5 | Resize 缩放 | T1.9, T1.4 | `dev_done` | 0 | PLACEHOLDER | [qa-reports/T2.5.md](../qa-reports/T2.5.md) | `resizeMath`；手柄拖拽；world AABB 选框 |
+| T2.5 | Resize 缩放 | T1.9, T1.4 | `dev_done` | 0 | 436f1f4 | [qa-reports/T2.5.md](../qa-reports/T2.5.md) | `resizeMath`；手柄拖拽；world AABB 选框 |
 | T2.6 | 对齐参考线与吸附 | T1.12 | `pending` | 0 | | | |
 | T2.7 | 资源管理面板 | T1.6, T1.11 | `pending` | 0 | | | |
 | T2.8 | 拖拽资源到画布创建 Image | T2.7 | `pending` | 0 | | | |
