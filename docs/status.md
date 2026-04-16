@@ -83,12 +83,12 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | 里程碑 | 状态 | 任务总数 | 完成数 | 进度 |
 |--------|------|---------|--------|------|
 | M0 — 工程搭建与 POC | `completed` | 7 | 7 | 100% |
-| M1 — 基础编辑器 | `in_progress` | 14 | 3 | 21% |
+| M1 — 基础编辑器 | `in_progress` | 14 | 4 | 29% |
 | M2 — 完整控件 & 资源 & 编辑操作 | `pending` | 12 | 0 | 0% |
 | M3 — Unity 导出 | `pending` | 3 | 0 | 0% |
 | M4 — Unreal 导出 | `pending` | 2 | 0 | 0% |
 | M5 — 打磨 | `pending` | 3 | 0 | 0% |
-| **总计** | | **41** | **10** | 24% |
+| **总计** | | **41** | **11** | 27% |
 
 ---
 
@@ -128,7 +128,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | T1.1 | YAML Schema 类型定义 | T0.1 | `passed` | 0 | c9704e8 | [qa-reports/T1.1.md](../qa-reports/T1.1.md) | |
 | T1.2 | YAML 读写与校验 | T1.1, T0.2 | `passed` | 0 | a10a094 | [qa-reports/T1.2.md](../qa-reports/T1.2.md) | |
 | T1.3 | Schema 版本升级框架 | T1.2 | `passed` | 0 | afcd967 | [qa-reports/T1.3.md](../qa-reports/T1.3.md) | |
-| T1.4 | 命令模式撤销重做框架 | T1.1 | `pending` | 0 | | | |
+| T1.4 | 命令模式撤销重做框架 | T1.1 | `passed` | 0 | （提交后回填） | [qa-reports/T1.4.md](../qa-reports/T1.4.md) | |
 | T1.5 | 主窗口四面板布局 | T0.1 | `pending` | 0 | | | |
 | T1.6 | 新建/打开/保存项目 | T1.2, T1.5 | `pending` | 0 | | | |
 | T1.7 | 画布基础渲染（Konva 集成） | T1.5, T1.6 | `pending` | 0 | | | |
@@ -297,6 +297,7 @@ QA 验证报告存放于 `qa-reports/` 目录，命名规则：`T{id}.md`
 | T1.1 | [qa-reports/T1.1.md](../qa-reports/T1.1.md) | Pass | 2026-04-16 |
 | T1.2 | [qa-reports/T1.2.md](../qa-reports/T1.2.md) | Pass | 2026-04-16 |
 | T1.3 | [qa-reports/T1.3.md](../qa-reports/T1.3.md) | Pass | 2026-04-16 |
+| T1.4 | [qa-reports/T1.4.md](../qa-reports/T1.4.md) | Pass | 2026-04-16 |
 
 > QA Agent 每验证完一个任务，在此表格追加一行。
 
