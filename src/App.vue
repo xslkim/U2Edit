@@ -11,6 +11,8 @@ import {
   loadProject,
   saveProject,
 } from "./core/project";
+import type { Command } from "./core/history";
+import { HistoryStack } from "./core/history";
 import type { Project } from "./core/schema";
 import {
   initWindowGuard,
@@ -22,6 +24,7 @@ import EditorCanvas from "./canvas/EditorCanvas.vue";
 import type { CanvasViewState } from "./canvas/renderer";
 import { SelectionStore } from "./canvas/selection";
 import NodeTree from "./panels/NodeTree.vue";
+import Properties from "./panels/Properties.vue";
 
 const TREE_MIN = 150;
 const TREE_MAX = 500;
@@ -53,6 +56,9 @@ const canvasZoomPercent = ref<number | null>(null);
 /** T1.9 画布选中（与 Konva 同步） */
 const selectionStore = new SelectionStore();
 
+/** T1.4 / T1.11：命令栈（打开/新建项目时清空） */
+const history = new HistoryStack();
+
 /** T1.10 仅内存锁定（YAML 不存） */
 const lockedNodeIds = ref<Set<string>>(new Set());
 const editorCanvasRef = ref<InstanceType<typeof EditorCanvas> | null>(null);
@@ -80,6 +86,28 @@ function onNodeTreeDirty(): void {
   editorCanvasRef.value?.rebuildScene();
 }
 
+function commitHistoryCommand(cmd: Command): void {
+  history.push(cmd);
+  setDirty(true);
+  editorCanvasRef.value?.rebuildScene();
+}
+
+function requestPropsRedraw(): void {
+  editorCanvasRef.value?.rebuildScene();
+}
+
+function isEditableDomTarget(t: EventTarget | null): boolean {
+  const el = t as HTMLElement | null;
+  if (!el) {
+    return false;
+  }
+  const tag = el.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+    return true;
+  }
+  return el.isContentEditable === true;
+}
+
 function onCanvasViewChange(s: CanvasViewState): void {
   canvasZoomPercent.value = s.zoomPercent;
 }
@@ -90,6 +118,7 @@ const statusSelectionLabel = computed(() => {
 });
 
 watch(loadedProject, (p) => {
+  history.clear();
   if (!p) {
     canvasZoomPercent.value = null;
     selectionStore.clear();
@@ -255,12 +284,40 @@ function touchProjectDirtyDemo(): void {
   }
   p.meta.canvasWidth += 1;
   setDirty(true);
+  editorCanvasRef.value?.rebuildScene();
 }
 
 function onGlobalKeydown(e: KeyboardEvent): void {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
     e.preventDefault();
     void onSaveProject();
+    return;
+  }
+  if (isEditableDomTarget(e.target)) {
+    return;
+  }
+  if (e.ctrlKey || e.metaKey) {
+    const k = e.key.toLowerCase();
+    if (k === "z") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        if (history.redo()) {
+          setDirty(true);
+          editorCanvasRef.value?.rebuildScene();
+        }
+      } else if (history.undo()) {
+        setDirty(true);
+        editorCanvasRef.value?.rebuildScene();
+      }
+      return;
+    }
+    if (k === "y") {
+      e.preventDefault();
+      if (history.redo()) {
+        setDirty(true);
+        editorCanvasRef.value?.rebuildScene();
+      }
+    }
   }
 }
 
@@ -658,7 +715,15 @@ function startDragPropsSplit(e: PointerEvent): void {
               <span>Properties</span>
               <button type="button" class="icon-btn" title="隐藏" @click="showProps = false">×</button>
             </div>
-            <div class="panel__body placeholder">（属性 · T1.11）</div>
+            <div class="panel__body panel__body--props">
+              <Properties
+                v-if="loadedProject"
+                :project="loadedProject"
+                :selection="selectionStore"
+                :commit-command="commitHistoryCommand"
+                :request-redraw="requestPropsRedraw"
+              />
+            </div>
           </section>
 
           <div

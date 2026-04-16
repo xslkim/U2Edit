@@ -91,7 +91,6 @@ watch(
   () => {
     mount();
   },
-  { deep: true },
 );
 
 watch(

@@ -145,6 +145,7 @@ function applyNodePatch(node: Node, patch: Record<string, unknown>): void {
 
 /**
  * 就地修改节点字段（不含跨类型替换）；`patch` 为顶层字段的浅合并。
+ * `beforeSnapshot`：拖拽等场景下在变更前传入，用于一次撤销回到拖拽前（T1.11）。
  */
 export class PatchNodeCommand implements Command {
   private readonly before: Node;
@@ -154,12 +155,13 @@ export class PatchNodeCommand implements Command {
     private readonly nodeId: string,
     private readonly patch: Record<string, unknown>,
     public label: string,
+    beforeSnapshot?: Node,
   ) {
     const f = findNode(project, nodeId);
     if (!f) {
       throw new Error(`PatchNodeCommand: 找不到节点 ${nodeId}`);
     }
-    this.before = structuredClone(f.node);
+    this.before = beforeSnapshot ? structuredClone(beforeSnapshot) : structuredClone(f.node);
   }
 
   do(): void {
@@ -176,6 +178,30 @@ export class PatchNodeCommand implements Command {
       throw new Error(`PatchNodeCommand.undo: 找不到节点 ${this.nodeId}`);
     }
     f.list[f.index] = structuredClone(this.before);
+  }
+}
+
+/** 多条子命令一次入栈（如多选改同一属性），undo 按逆序 */
+export class CompositeCommand implements Command {
+  constructor(
+    private readonly cmds: Command[],
+    public label: string,
+  ) {
+    if (cmds.length === 0) {
+      throw new Error("CompositeCommand: 至少 1 条子命令");
+    }
+  }
+
+  do(): void {
+    for (const c of this.cmds) {
+      c.do();
+    }
+  }
+
+  undo(): void {
+    for (let i = this.cmds.length - 1; i >= 0; i--) {
+      this.cmds[i].undo();
+    }
   }
 }
 

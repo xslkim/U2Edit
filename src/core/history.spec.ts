@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AddAssetCommand,
   AddNodeCommand,
+  CompositeCommand,
   HistoryStack,
   PatchNodeCommand,
   RemoveAssetCommand,
@@ -118,6 +119,37 @@ describe("T1.4 history", () => {
   it("用例5：undo 栈空时 undo 返回 false 且不抛错", () => {
     const h = new HistoryStack();
     expect(h.undo()).toBe(false);
+  });
+
+  it("PatchNodeCommand 传入 beforeSnapshot 时 undo 回到快照", () => {
+    const project = minimalProject();
+    const h = new HistoryStack();
+    const f = findNode(project, "root_panel")!;
+    const before = structuredClone(f.node);
+    f.node.x = 42;
+    h.push(new PatchNodeCommand(project, "root_panel", { x: 42 }, "drag-x", before));
+    expect(f.node.x).toBe(42);
+    expect(h.undo()).toBe(true);
+    expect(findNode(project, "root_panel")!.node.x).toBe(0);
+  });
+
+  it("CompositeCommand：undo 按子命令逆序恢复", () => {
+    const project = minimalProject();
+    const h = new HistoryStack();
+    h.push(
+      new CompositeCommand(
+        [
+          new PatchNodeCommand(project, "root_panel", { x: 1 }, "a"),
+          new PatchNodeCommand(project, "root_panel", { y: 2 }, "b"),
+        ],
+        "ab",
+      ),
+    );
+    expect(findNode(project, "root_panel")!.node.x).toBe(1);
+    expect(findNode(project, "root_panel")!.node.y).toBe(2);
+    expect(h.undo()).toBe(true);
+    expect(findNode(project, "root_panel")!.node.x).toBe(0);
+    expect(findNode(project, "root_panel")!.node.y).toBe(0);
   });
 
   it("附加：Add / Remove / Reorder / Asset 命令可往返", () => {
