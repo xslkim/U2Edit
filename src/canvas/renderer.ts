@@ -1,5 +1,7 @@
 import Konva from "konva";
 import { joinProjectPath } from "../core/project";
+import type { Command } from "../core/history";
+import { CompositeCommand, findNode, PatchNodeCommand } from "../core/history";
 import type {
   AssetTintRef,
   ButtonNode,
@@ -56,6 +58,8 @@ export interface MountProjectCanvasOptions {
   selection: SelectionStore;
   /** 仅编辑器内存锁定：命中测试忽略 */
   isNodeLocked?: (id: string) => boolean;
+  /** T1.12：松手时入栈；未传则仅不记录历史 */
+  commitCommand?: (cmd: Command) => void;
 }
 
 export interface MountedCanvas {
@@ -612,7 +616,7 @@ function isEditableDomTarget(t: EventTarget | null): boolean {
 const MARQUEE_THRESHOLD_PX = 4;
 
 export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanvas {
-  const { container, project, projectDir, loadImage, onViewChange, selection } = opts;
+  const { container, project, projectDir, loadImage, onViewChange, selection, commitCommand } = opts;
   const isNodeLocked = opts.isNodeLocked ?? ((): boolean => false);
   let stage: Konva.Stage | null = null;
   let mainLayer: Konva.Layer | null = null;
@@ -637,6 +641,54 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
   let screenMarqueeStart: { x: number; y: number } | null = null;
   let canvasMarqueeStart: { x: number; y: number } | null = null;
   let altDrillIndex = 0;
+
+  /** T1.12 画布拖拽移动 */
+  let nodeDragPending = false;
+  let nodeDragActive = false;
+  let nodeDragPointerStartScr: { x: number; y: number } | null = null;
+  let nodeDragStartCanvas: { x: number; y: number } | null = null;
+  let nodeDragIds: string[] = [];
+  let nodeDragSnapshots: Map<string, Node> = new Map();
+
+  const resetNodeDrag = (): void => {
+    nodeDragPending = false;
+    nodeDragActive = false;
+    nodeDragPointerStartScr = null;
+    nodeDragStartCanvas = null;
+    nodeDragIds = [];
+    nodeDragSnapshots = new Map();
+  };
+
+  const rootPanelId = (): string | null => project.nodes[0]?.id ?? null;
+
+  const movableSelectedIds = (): string[] => {
+    const rid = rootPanelId();
+    return [...selection.selectedIds.value].filter((id) => id !== rid && !isNodeLocked(id));
+  };
+
+  const tryBeginNodeDrag = (ev: MouseEvent, canvasPt: { x: number; y: number }): void => {
+    if (!commitCommand) {
+      return;
+    }
+    const ids = movableSelectedIds();
+    if (ids.length === 0) {
+      return;
+    }
+    nodeDragSnapshots = new Map();
+    for (const id of ids) {
+      const f = findNode(project, id);
+      if (!f) {
+        resetNodeDrag();
+        return;
+      }
+      nodeDragSnapshots.set(id, structuredClone(f.node));
+    }
+    nodeDragPending = true;
+    nodeDragActive = false;
+    nodeDragPointerStartScr = { x: ev.clientX, y: ev.clientY };
+    nodeDragStartCanvas = { x: canvasPt.x, y: canvasPt.y };
+    nodeDragIds = ids;
+  };
 
   const stageToCanvas = (sx: number, sy: number): { x: number; y: number } => ({
     x: (sx - viewPan.x) / viewScale,
@@ -690,6 +742,10 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
   const updateContainerCursor = (): void => {
     if (panDragging) {
       container.style.cursor = "grabbing";
+      return;
+    }
+    if (nodeDragActive) {
+      container.style.cursor = "move";
       return;
     }
     if (spaceHeld) {
@@ -791,10 +847,12 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
           selection.selectOnly(pick);
           altDrillIndex++;
         }
-      } else {
+      } else if (!selection.has(tid)) {
         selection.selectOnly(tid);
       }
       updateSelectionOverlay();
+      tryBeginNodeDrag(ev, canvasPt);
+      updateContainerCursor();
       return;
     }
 
@@ -816,6 +874,44 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
       const dy = e.clientY - panPointerStart.y;
       viewPan = { x: panViewStart.x + dx, y: panViewStart.y + dy };
       applyViewportTransform();
+      return;
+    }
+
+    if ((nodeDragPending || nodeDragActive) && stage && nodeDragStartCanvas) {
+      const p = stage.getPointerPosition();
+      if (!p) {
+        return;
+      }
+      if (nodeDragPending && !nodeDragActive && nodeDragPointerStartScr) {
+        const dist = Math.hypot(e.clientX - nodeDragPointerStartScr.x, e.clientY - nodeDragPointerStartScr.y);
+        if (dist < MARQUEE_THRESHOLD_PX) {
+          return;
+        }
+        nodeDragActive = true;
+      }
+      if (nodeDragActive) {
+        const curCanvas = stageToCanvas(p.x, p.y);
+        let dx = curCanvas.x - nodeDragStartCanvas.x;
+        let dy = curCanvas.y - nodeDragStartCanvas.y;
+        if (e.shiftKey) {
+          if (Math.abs(dx) >= Math.abs(dy)) {
+            dy = 0;
+          } else {
+            dx = 0;
+          }
+        }
+        for (const id of nodeDragIds) {
+          const snap = nodeDragSnapshots.get(id);
+          const f = findNode(project, id);
+          if (!snap || !f) {
+            continue;
+          }
+          f.node.x = snap.x + dx;
+          f.node.y = snap.y + dy;
+        }
+        rebuildContent();
+        updateContainerCursor();
+      }
       return;
     }
 
@@ -861,6 +957,45 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     if (panDragging) {
       panDragging = false;
       updateContainerCursor();
+      return;
+    }
+
+    if (nodeDragPending || nodeDragActive) {
+      const didDrag = nodeDragActive;
+      if (didDrag && commitCommand) {
+        const cmds: PatchNodeCommand[] = [];
+        for (const id of nodeDragIds) {
+          const snap = nodeDragSnapshots.get(id);
+          const f = findNode(project, id);
+          if (!snap || !f) {
+            continue;
+          }
+          if (f.node.x === snap.x && f.node.y === snap.y) {
+            continue;
+          }
+          cmds.push(
+            new PatchNodeCommand(
+              project,
+              id,
+              { x: f.node.x, y: f.node.y },
+              "移动",
+              snap,
+            ),
+          );
+        }
+        if (cmds.length === 1) {
+          commitCommand(cmds[0]);
+        } else if (cmds.length > 1) {
+          commitCommand(new CompositeCommand(cmds, "移动"));
+        }
+      }
+      resetNodeDrag();
+      updateContainerCursor();
+      emptyClickPending = false;
+      marqueeActive = false;
+      screenMarqueeStart = null;
+      canvasMarqueeStart = null;
+      destroyMarqueeVisual();
       return;
     }
 
@@ -916,8 +1051,56 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
       screenMarqueeStart = null;
       canvasMarqueeStart = null;
       destroyMarqueeVisual();
+      resetNodeDrag();
       updateSelectionOverlay();
       return;
+    }
+    if (!isEditableDomTarget(e.target)) {
+      const k = e.key;
+      if (k === "ArrowLeft" || k === "ArrowRight" || k === "ArrowUp" || k === "ArrowDown") {
+        if (commitCommand) {
+          const step = e.shiftKey ? 10 : 1;
+          let dx = 0;
+          let dy = 0;
+          if (k === "ArrowLeft") {
+            dx = -step;
+          } else if (k === "ArrowRight") {
+            dx = step;
+          } else if (k === "ArrowUp") {
+            dy = -step;
+          } else {
+            dy = step;
+          }
+          const ids = movableSelectedIds();
+          if (ids.length > 0) {
+            e.preventDefault();
+            const cmds: PatchNodeCommand[] = [];
+            for (const id of ids) {
+              const f = findNode(project, id);
+              if (!f) {
+                continue;
+              }
+              const snap = structuredClone(f.node);
+              cmds.push(
+                new PatchNodeCommand(
+                  project,
+                  id,
+                  { x: f.node.x + dx, y: f.node.y + dy },
+                  "方向键",
+                  snap,
+                ),
+              );
+            }
+            if (cmds.length === 1) {
+              commitCommand(cmds[0]);
+            } else {
+              commitCommand(new CompositeCommand(cmds, "方向键"));
+            }
+            rebuildContent();
+            return;
+          }
+        }
+      }
     }
     if (e.code === "Space" && !isEditableDomTarget(e.target)) {
       e.preventDefault();
@@ -965,6 +1148,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
   };
 
   const destroy = (): void => {
+    resetNodeDrag();
     ro?.disconnect();
     ro = null;
     window.removeEventListener("mousemove", onWindowMouseMove);
@@ -1016,6 +1200,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
   };
 
   const redraw = async (): Promise<void> => {
+    resetNodeDrag();
     ro?.disconnect();
     ro = null;
     window.removeEventListener("mousemove", onWindowMouseMove);

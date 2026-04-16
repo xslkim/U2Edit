@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { readFile } from "@tauri-apps/plugin-fs";
 import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import type { Command } from "../core/history";
 import type { Project } from "../core/schema";
 import { mountProjectCanvas, type CanvasViewState } from "./renderer";
 import type { SelectionStore } from "./selection";
@@ -11,6 +12,7 @@ const props = withDefaults(
     projectDir: string;
     selection: SelectionStore;
     isNodeLocked?: (id: string) => boolean;
+    commitCommand?: (cmd: Command) => void;
   }>(),
   {
     isNodeLocked: () => false,
@@ -64,6 +66,7 @@ function mount(): void {
     onViewChange: (state) => emit("viewChange", state),
     selection: props.selection,
     isNodeLocked: props.isNodeLocked,
+    commitCommand: props.commitCommand,
   });
   void api.redraw();
 }

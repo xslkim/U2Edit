@@ -683,6 +683,7 @@ function startDragPropsSplit(e: PointerEvent): void {
               :project-dir="projectDir!"
               :selection="selectionStore"
               :is-node-locked="isNodeLocked"
+              :commit-command="commitHistoryCommand"
               @view-change="onCanvasViewChange"
             />
           </template>
