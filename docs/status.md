@@ -84,11 +84,11 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 |--------|------|---------|--------|------|
 | M0 — 工程搭建与 POC | `completed` | 7 | 7 | 100% |
 | M1 — 基础编辑器 | `completed` | 14 | 14 | 100% |
-| M2 — 完整控件 & 资源 & 编辑操作 | `in_progress` | 12 | 2 | 17% |
+| M2 — 完整控件 & 资源 & 编辑操作 | `in_progress` | 12 | 3 | 25% |
 | M3 — Unity 导出 | `pending` | 3 | 0 | 0% |
 | M4 — Unreal 导出 | `pending` | 2 | 0 | 0% |
 | M5 — 打磨 | `pending` | 3 | 0 | 0% |
-| **总计** | | **41** | **23** | 56% |
+| **总计** | | **41** | **24** | 59% |
 
 ---
 
@@ -150,7 +150,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | T2.4 | 层级调整 | T2.2, T1.4 | `dev_done` | 0 | e1db62a | [qa-reports/T2.4.md](../qa-reports/T2.4.md) | 右键 T2.2；Ctrl+]/[（Shift 置顶/置底） |
 | T2.5 | Resize 缩放 | T1.9, T1.4 | `dev_done` | 0 | 436f1f4 | [qa-reports/T2.5.md](../qa-reports/T2.5.md) | `resizeMath`；手柄拖拽；world AABB 选框 |
 | T2.6 | 对齐参考线与吸附 | T1.12 | `dev_done` | 0 | 6664516 | [qa-reports/T2.6.md](../qa-reports/T2.6.md) | `guides.ts`；5 屏像素阈值；红水平/绿垂直 |
-| T2.7 | 资源管理面板 | T1.6, T1.11 | `pending` | 0 | | | |
+| T2.7 | 资源管理面板 | T1.6, T1.11 | `dev_done` | 0 | 60105bb | [qa-reports/T2.7.md](../qa-reports/T2.7.md) | `Assets.vue`；导入/重名/搜索/右键删除 |
 | T2.8 | 拖拽资源到画布创建 Image | T2.7 | `pending` | 0 | | | |
 | T2.9 | Text 双击内联编辑 | T1.11, T0.7 | `pending` | 0 | | | |
 | T2.10 | 节点树搜索与拖拽 | T1.10 | `pending` | 0 | | | |
