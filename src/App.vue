@@ -380,6 +380,10 @@ function onNodeTreeDirty(): void {
   editorCanvasRef.value?.rebuildScene();
 }
 
+function onTreeMoveBlocked(msg: string): void {
+  void message(msg, { title: "节点树", kind: "warning" });
+}
+
 function onAssetsDirty(): void {
   setDirty(true);
   editorCanvasRef.value?.rebuildScene();
@@ -1060,10 +1064,13 @@ function startDragPropsSplit(e: PointerEvent): void {
           <div class="panel__body panel__body--tree">
             <NodeTree
               v-if="loadedProject"
+              :project="loadedProject"
               :root="loadedProject.nodes[0]"
               :selection="selectionStore"
               :locked-ids="lockedNodeIds"
               @dirty="onNodeTreeDirty"
+              @commit="commitHistoryCommand"
+              @move-blocked="onTreeMoveBlocked"
               @toggle-lock="toggleNodeLock"
               @row-contextmenu="onTreeRowContextMenu"
             />
