@@ -21,11 +21,13 @@
     "@tauri-apps/plugin-dialog": "^2.7.0",
     "@tauri-apps/plugin-fs": "^2.5.0",
     "@tauri-apps/plugin-opener": "^2",
+    "js-yaml": "^4.1.1",
     "konva": "^10.2.5",
     "vue": "^3.5.13"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.6.0",
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/test-utils": "^2.4.6",
