@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { message } from "@tauri-apps/plugin-dialog";
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import T06KonvaPerfPoc from "./poc/T06KonvaPerfPoc.vue";
 import T07KonvaImePoc from "./poc/T07KonvaImePoc.vue";
 import * as fileService from "./core/fileService";
@@ -19,6 +19,7 @@ import {
 } from "./core/windowGuard";
 import { applyWindowTitle } from "./core/windowTitle";
 import EditorCanvas from "./canvas/EditorCanvas.vue";
+import type { CanvasViewState } from "./canvas/renderer";
 
 const TREE_MIN = 150;
 const TREE_MAX = 500;
@@ -43,6 +44,30 @@ function directoryBasename(path: string): string {
 const loadedProject = ref<Project | null>(null);
 const projectDir = ref<string | null>(null);
 const isDirty = ref(false);
+
+/** T1.8 画布视口（来自 Konva）；无项目时为 null */
+const canvasZoomPercent = ref<number | null>(null);
+/** T1.9 将接入真实选中；当前供状态栏与调试 */
+const selectedNodeCount = ref(0);
+
+function onCanvasViewChange(s: CanvasViewState): void {
+  canvasZoomPercent.value = s.zoomPercent;
+}
+
+const statusSelectionLabel = computed(() =>
+  selectedNodeCount.value > 0 ? `已选中 ${selectedNodeCount.value}` : `选中 ${selectedNodeCount.value}`,
+);
+
+function bumpSelectedCount(delta: number): void {
+  selectedNodeCount.value = Math.min(99, Math.max(0, selectedNodeCount.value + delta));
+}
+
+watch(loadedProject, (p) => {
+  if (!p) {
+    canvasZoomPercent.value = null;
+    selectedNodeCount.value = 0;
+  }
+});
 
 const showNewDialog = ref(false);
 const newWizard = ref({
@@ -541,7 +566,12 @@ function startDragPropsSplit(e: PointerEvent): void {
                 试改画布宽 +1（测未保存 *）
               </button>
             </div>
-            <EditorCanvas class="canvas__stage" :project="loadedProject" :project-dir="projectDir" />
+            <EditorCanvas
+              class="canvas__stage"
+              :project="loadedProject"
+              :project-dir="projectDir!"
+              @view-change="onCanvasViewChange"
+            />
           </template>
           <template v-else>
             <div class="canvas__label">Canvas 画布</div>
@@ -593,7 +623,7 @@ function startDragPropsSplit(e: PointerEvent): void {
       </div>
 
       <footer v-show="showStatus" class="statusbar" aria-label="StatusBar">
-        <span>缩放 100%</span>
+        <span>缩放 {{ canvasZoomPercent != null ? `${canvasZoomPercent}%` : "—" }}</span>
         <span class="sep">|</span>
         <span>{{
           loadedProject
@@ -601,7 +631,7 @@ function startDragPropsSplit(e: PointerEvent): void {
             : "画布 —"
         }}</span>
         <span class="sep">|</span>
-        <span>选中 0</span>
+        <span>{{ statusSelectionLabel }}</span>
         <span class="sep">|</span>
         <span>{{ statusSaveLabel }}</span>
       </footer>
@@ -656,6 +686,11 @@ function startDragPropsSplit(e: PointerEvent): void {
           <div class="row">
             <button type="button" @click="toggleDirty">切换 dirty（关闭拦截）</button>
             <button type="button" @click="toggleWatch">{{ watching ? "停止监听" : "监听" }} test.yaml</button>
+          </div>
+          <div class="row">
+            <span class="toolbar__hint">T1.8 状态栏「选中数」调试</span>
+            <button type="button" @click="bumpSelectedCount(1)">+1</button>
+            <button type="button" @click="bumpSelectedCount(-1)">−1</button>
           </div>
           <pre class="log">{{ logLines.join("\n") || "日志…" }}</pre>
         </div>

@@ -2,11 +2,15 @@
 import { readFile } from "@tauri-apps/plugin-fs";
 import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import type { Project } from "../core/schema";
-import { mountProjectCanvas } from "./renderer";
+import { mountProjectCanvas, type CanvasViewState } from "./renderer";
 
 const props = defineProps<{
   project: Project;
   projectDir: string;
+}>();
+
+const emit = defineEmits<{
+  viewChange: [state: CanvasViewState];
 }>();
 
 let api: ReturnType<typeof mountProjectCanvas> | null = null;
@@ -49,6 +53,7 @@ function mount(): void {
     project: props.project,
     projectDir: props.projectDir,
     loadImage: loadImageFromDisk,
+    onViewChange: (state) => emit("viewChange", state),
   });
   void api.redraw();
 }

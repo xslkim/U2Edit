@@ -13,15 +13,32 @@ import type {
   ToggleNode,
 } from "../core/schema";
 import { nodeTopLeft } from "./pivotMath";
+import {
+  centerOneToOne,
+  clampViewScale,
+  fitCanvasInitial,
+  fitCanvasToWindow,
+  wheelScaleFactor,
+  zoomAtScreenPoint,
+} from "./viewTransform";
 
 /** 从磁盘绝对路径加载位图（由宿主注入；失败返回 null） */
 export type ImageLoader = (absolutePath: string) => Promise<HTMLImageElement | null>;
+
+export interface CanvasViewState {
+  scale: number;
+  zoomPercent: number;
+  panX: number;
+  panY: number;
+  gridStep: number;
+}
 
 export interface MountProjectCanvasOptions {
   container: HTMLDivElement;
   project: Project;
   projectDir: string | null;
   loadImage: ImageLoader;
+  onViewChange?: (state: CanvasViewState) => void;
 }
 
 export interface MountedCanvas {
@@ -54,20 +71,6 @@ export function resolveAssetAbsolute(
   }
   const rel = ref.path.replace(/^[/\\]+/, "");
   return joinProjectPath(projectDir, rel);
-}
-
-function computeFit(
-  stageW: number,
-  stageH: number,
-  cw: number,
-  ch: number,
-): { x: number; y: number; scale: number } {
-  const sw = Math.max(1, stageW - PAD * 2);
-  const sh = Math.max(1, stageH - PAD * 2);
-  const scale = Math.min(sw / cw, sh / ch, 1);
-  const x = (stageW - cw * scale) / 2;
-  const y = (stageH - ch * scale) / 2;
-  return { x, y, scale };
 }
 
 function missingPlaceholder(width: number, height: number, hint: string): Konva.Group {
@@ -546,38 +549,229 @@ function renderInputField(
   return root;
 }
 
+const GRID_CYCLE = [0, 10, 50, 100] as const;
+
+function buildGrid(cw: number, ch: number, step: number): Konva.Group {
+  const g = new Konva.Group({ listening: false });
+  const stroke = "rgba(15, 23, 42, 0.14)";
+  for (let x = 0; x <= cw; x += step) {
+    g.add(
+      new Konva.Line({
+        points: [x, 0, x, ch],
+        stroke,
+        strokeWidth: 1,
+      }),
+    );
+  }
+  for (let y = 0; y <= ch; y += step) {
+    g.add(
+      new Konva.Line({
+        points: [0, y, cw, y],
+        stroke,
+        strokeWidth: 1,
+      }),
+    );
+  }
+  return g;
+}
+
+function isEditableDomTarget(t: EventTarget | null): boolean {
+  const el = t as HTMLElement | null;
+  if (!el) {
+    return false;
+  }
+  const tag = el.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+    return true;
+  }
+  return el.isContentEditable === true;
+}
+
 export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanvas {
-  const { container, project, projectDir, loadImage } = opts;
+  const { container, project, projectDir, loadImage, onViewChange } = opts;
   let stage: Konva.Stage | null = null;
   let mainLayer: Konva.Layer | null = null;
+  let bgRect: Konva.Rect | null = null;
+  let viewport: Konva.Group | null = null;
   let world: Konva.Group | null = null;
   let ro: ResizeObserver | null = null;
   let lastImgMap: Map<string, HTMLImageElement | null> | null = null;
 
-  const layoutWorld = (): void => {
-    if (!stage || !world || !mainLayer) {
+  let viewPan = { x: 0, y: 0 };
+  let viewScale = 1;
+  let gridStep: number = 0;
+  let spaceHeld = false;
+  let panDragging = false;
+  let panPointerStart = { x: 0, y: 0 };
+  let panViewStart = { x: 0, y: 0 };
+
+  const notifyView = (): void => {
+    onViewChange?.({
+      scale: viewScale,
+      zoomPercent: Math.round(viewScale * 100),
+      panX: viewPan.x,
+      panY: viewPan.y,
+      gridStep,
+    });
+  };
+
+  const updateContainerCursor = (): void => {
+    if (panDragging) {
+      container.style.cursor = "grabbing";
+      return;
+    }
+    if (spaceHeld) {
+      container.style.cursor = "grab";
+      return;
+    }
+    container.style.cursor = "";
+  };
+
+  const applyViewportTransform = (): void => {
+    if (!viewport) {
+      return;
+    }
+    viewport.position(viewPan);
+    viewport.scale({ x: viewScale, y: viewScale });
+    mainLayer?.batchDraw();
+    notifyView();
+  };
+
+  const syncStageSize = (): void => {
+    if (!stage || !bgRect) {
       return;
     }
     const w = container.clientWidth || 400;
     const h = container.clientHeight || 300;
     stage.width(w);
     stage.height(h);
+    bgRect.width(w);
+    bgRect.height(h);
+    applyViewportTransform();
+  };
+
+  const cycleGrid = (): void => {
+    const idx = GRID_CYCLE.indexOf(gridStep as (typeof GRID_CYCLE)[number]);
+    const next = GRID_CYCLE[(idx < 0 ? 0 : idx + 1) % GRID_CYCLE.length];
+    gridStep = next;
+    rebuildContent();
+  };
+
+  const onWheel = (e: Konva.KonvaEventObject<WheelEvent>): void => {
+    e.evt.preventDefault();
+    e.evt.stopPropagation();
+    if (!stage) {
+      return;
+    }
+    const p = stage.getPointerPosition();
+    if (!p) {
+      return;
+    }
+    const factor = wheelScaleFactor(e.evt.deltaY);
+    const newS = clampViewScale(viewScale * factor);
+    viewPan = zoomAtScreenPoint(viewPan, viewScale, p.x, p.y, newS);
+    viewScale = clampViewScale(newS);
+    applyViewportTransform();
+  };
+
+  const onStageMouseDown = (e: Konva.KonvaEventObject<MouseEvent>): void => {
+    const ev = e.evt;
+    const wantPan = ev.button === 1 || (spaceHeld && ev.button === 0);
+    if (!wantPan) {
+      return;
+    }
+    ev.preventDefault();
+    panDragging = true;
+    panPointerStart = { x: ev.clientX, y: ev.clientY };
+    panViewStart = { ...viewPan };
+    updateContainerCursor();
+  };
+
+  const onWindowMouseMove = (e: MouseEvent): void => {
+    if (!panDragging) {
+      return;
+    }
+    e.preventDefault();
+    const dx = e.clientX - panPointerStart.x;
+    const dy = e.clientY - panPointerStart.y;
+    viewPan = { x: panViewStart.x + dx, y: panViewStart.y + dy };
+    applyViewportTransform();
+  };
+
+  const onWindowMouseUp = (): void => {
+    if (!panDragging) {
+      return;
+    }
+    panDragging = false;
+    updateContainerCursor();
+  };
+
+  const onWindowKeyDown = (e: KeyboardEvent): void => {
+    if (e.repeat) {
+      return;
+    }
+    if (e.code === "Space" && !isEditableDomTarget(e.target)) {
+      e.preventDefault();
+      spaceHeld = true;
+      updateContainerCursor();
+      return;
+    }
+    if (isEditableDomTarget(e.target)) {
+      return;
+    }
+    if (!(e.ctrlKey || e.metaKey)) {
+      return;
+    }
     const cw = project.meta.canvasWidth;
     const ch = project.meta.canvasHeight;
-    const fit = computeFit(w, h, cw, ch);
-    world.position({ x: fit.x, y: fit.y });
-    world.scale({ x: fit.scale, y: fit.scale });
-    mainLayer.batchDraw();
+    const sw = stage?.width() ?? 400;
+    const sh = stage?.height() ?? 300;
+    if (e.key === "0") {
+      e.preventDefault();
+      const o = centerOneToOne(sw, sh, cw, ch);
+      viewScale = o.scale;
+      viewPan = { x: o.panX, y: o.panY };
+      applyViewportTransform();
+      return;
+    }
+    if (e.key === "1") {
+      e.preventDefault();
+      const o = fitCanvasToWindow(sw, sh, cw, ch, 0.05);
+      viewScale = o.scale;
+      viewPan = { x: o.panX, y: o.panY };
+      applyViewportTransform();
+      return;
+    }
+    if (e.key.toLowerCase() === "g") {
+      e.preventDefault();
+      cycleGrid();
+    }
+  };
+
+  const onWindowKeyUp = (e: KeyboardEvent): void => {
+    if (e.code === "Space") {
+      spaceHeld = false;
+      updateContainerCursor();
+    }
   };
 
   const destroy = (): void => {
     ro?.disconnect();
     ro = null;
+    window.removeEventListener("mousemove", onWindowMouseMove);
+    window.removeEventListener("mouseup", onWindowMouseUp);
+    window.removeEventListener("keydown", onWindowKeyDown);
+    window.removeEventListener("keyup", onWindowKeyUp);
+    stage?.off("wheel", onWheel);
+    stage?.off("mousedown", onStageMouseDown);
     stage?.destroy();
     stage = null;
     mainLayer = null;
+    bgRect = null;
+    viewport = null;
     world = null;
     lastImgMap = null;
+    container.style.cursor = "";
   };
 
   const rebuildContent = (): void => {
@@ -597,23 +791,34 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
         listening: false,
       }),
     );
+    if (gridStep > 0) {
+      world.add(buildGrid(cw, ch, gridStep));
+    }
     const imgMap = lastImgMap ?? new Map();
-    const root = project.nodes[0];
-    if (root) {
-      const g = renderNode(project, projectDir, imgMap, root);
+    const rootNode = project.nodes[0];
+    if (rootNode) {
+      const g = renderNode(project, projectDir, imgMap, rootNode);
       if (g) {
         world.add(g);
       }
     }
-    layoutWorld();
+    applyViewportTransform();
   };
 
   const redraw = async (): Promise<void> => {
     ro?.disconnect();
     ro = null;
+    window.removeEventListener("mousemove", onWindowMouseMove);
+    window.removeEventListener("mouseup", onWindowMouseUp);
+    window.removeEventListener("keydown", onWindowKeyDown);
+    window.removeEventListener("keyup", onWindowKeyUp);
+    stage?.off("wheel", onWheel);
+    stage?.off("mousedown", onStageMouseDown);
     stage?.destroy();
     stage = null;
     mainLayer = null;
+    bgRect = null;
+    viewport = null;
     world = null;
 
     const w = container.clientWidth || 400;
@@ -626,27 +831,28 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     mainLayer = new Konva.Layer();
     stage.add(mainLayer);
 
-    mainLayer.add(
-      new Konva.Rect({
-        x: 0,
-        y: 0,
-        width: w,
-        height: h,
-        fill: GRAY,
-        listening: false,
-      }),
-    );
+    bgRect = new Konva.Rect({
+      x: 0,
+      y: 0,
+      width: w,
+      height: h,
+      fill: GRAY,
+      listening: false,
+    });
+    mainLayer.add(bgRect);
 
     const cw = project.meta.canvasWidth;
     const ch = project.meta.canvasHeight;
-    const fit = computeFit(w, h, cw, ch);
-    world = new Konva.Group({
-      x: fit.x,
-      y: fit.y,
-      scaleX: fit.scale,
-      scaleY: fit.scale,
-    });
-    mainLayer.add(world);
+    const init = fitCanvasInitial(w, h, cw, ch, PAD);
+    viewScale = init.scale;
+    viewPan = { x: init.panX, y: init.panY };
+    gridStep = 0;
+
+    viewport = new Konva.Group();
+    mainLayer.add(viewport);
+
+    world = new Konva.Group();
+    viewport.add(world);
 
     const paths = new Set<string>();
     if (project.nodes[0]) {
@@ -655,8 +861,15 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     lastImgMap = await preloadImages(paths, loadImage);
     rebuildContent();
 
+    stage.on("wheel", onWheel);
+    stage.on("mousedown", onStageMouseDown);
+    window.addEventListener("mousemove", onWindowMouseMove);
+    window.addEventListener("mouseup", onWindowMouseUp);
+    window.addEventListener("keydown", onWindowKeyDown);
+    window.addEventListener("keyup", onWindowKeyUp);
+
     ro = new ResizeObserver(() => {
-      layoutWorld();
+      syncStageSize();
     });
     ro.observe(container);
   };
