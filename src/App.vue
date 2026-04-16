@@ -57,6 +57,7 @@ import NodeTree from "./panels/NodeTree.vue";
 import ControlAddToolbar from "./panels/ControlAddToolbar.vue";
 import Assets from "./panels/Assets.vue";
 import Properties from "./panels/Properties.vue";
+import UnityExportDialog from "./panels/UnityExportDialog.vue";
 
 const TREE_MIN = 150;
 const TREE_MAX = 500;
@@ -81,6 +82,19 @@ function directoryBasename(path: string): string {
 const loadedProject = ref<Project | null>(null);
 const projectDir = ref<string | null>(null);
 const isDirty = ref(false);
+
+/** T3.2 Toolbar「导出」下拉 */
+const exportMenuOpen = ref(false);
+const unityExportOpen = ref(false);
+
+function startUnityExport(): void {
+  exportMenuOpen.value = false;
+  unityExportOpen.value = true;
+}
+
+function onUnityExportPersisted(): void {
+  isDirty.value = false;
+}
 
 /** T1.8 画布视口（来自 Konva）；无项目时为 null */
 const canvasZoomPercent = ref<number | null>(null);
@@ -1177,6 +1191,33 @@ function startDragPropsSplit(e: PointerEvent): void {
           </button>
         </div>
 
+        <div
+          v-if="loadedProject && projectDir"
+          class="toolbar__export"
+        >
+          <button
+            type="button"
+            class="btn-sm"
+            :aria-expanded="exportMenuOpen"
+            aria-haspopup="menu"
+            @click="exportMenuOpen = !exportMenuOpen"
+          >
+            导出 ▾
+          </button>
+          <ul v-if="exportMenuOpen" class="toolbar__export-menu" role="menu">
+            <li role="none">
+              <button
+                type="button"
+                class="toolbar__export-item"
+                role="menuitem"
+                @click="startUnityExport"
+              >
+                Unity（C# Editor 脚本）
+              </button>
+            </li>
+          </ul>
+        </div>
+
         <div class="toolbar__toggles" role="toolbar" aria-label="面板显示">
           <button
             type="button"
@@ -1217,6 +1258,14 @@ function startDragPropsSplit(e: PointerEvent): void {
           <button type="button" class="btn-sm" @click="view = 't07'">T0.7 IME</button>
         </div>
       </header>
+
+      <UnityExportDialog
+        v-if="loadedProject && projectDir"
+        v-model:open="unityExportOpen"
+        :project="loadedProject"
+        :project-dir="projectDir"
+        @persisted="onUnityExportPersisted"
+      />
 
       <ControlAddToolbar v-if="loadedProject && projectDir" @add="onAddControl" />
 
@@ -1549,6 +1598,41 @@ body,
   flex-wrap: wrap;
   gap: 0.35rem;
   align-items: center;
+}
+
+.toolbar__export {
+  position: relative;
+}
+
+.toolbar__export-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  margin: 0;
+  padding: 0.25rem 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #d4d4d8;
+  border-radius: 4px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.12);
+  z-index: 80;
+  min-width: 12rem;
+}
+
+.toolbar__export-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #18181b;
+}
+
+.toolbar__export-item:hover {
+  background: #f4f4f5;
 }
 
 .toolbar__brand {

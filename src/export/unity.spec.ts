@@ -57,7 +57,7 @@ describe("T3.1 Unity C# 生成器", () => {
         canvasWidth: 800,
         canvasHeight: 600,
       },
-      assets: [{ id: "tex1", path: "img/a.png" }],
+      assets: [{ id: "tex1", path: "img/a.png", width: 1, height: 1 }],
       nodes: [root],
       export: minimalExport,
     };

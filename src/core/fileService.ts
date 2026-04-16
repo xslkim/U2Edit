@@ -1,4 +1,4 @@
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 
 /**
@@ -32,6 +32,15 @@ export async function ensureDir(path: string): Promise<void> {
 }
 
 /** 多选图片文件（png/jpg/jpeg/webp），取消返回 null */
+/** 保存对话框选择 .cs 路径，取消为 null */
+export async function pickSaveCsFile(defaultPath?: string): Promise<string | null> {
+  return save({
+    title: "导出 Unity C# 脚本",
+    filters: [{ name: "C#", extensions: ["cs"] }],
+    defaultPath,
+  });
+}
+
 export async function pickImageFiles(): Promise<string[] | null> {
   const selected = await open({
     multiple: true,
