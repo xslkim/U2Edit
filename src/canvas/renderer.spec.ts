@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveAssetAbsolute } from "./renderer";
+import { resolveAssetAbsolute } from "../core/assetPath";
 import type { Project } from "../core/schema";
 
 function minimalProject(assets: Project["assets"]): Project {

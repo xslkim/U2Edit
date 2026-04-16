@@ -1,5 +1,5 @@
 import Konva from "konva";
-import { joinProjectPath } from "../core/project";
+import { resolveAssetAbsolute } from "../core/assetPath";
 import type { Command } from "../core/history";
 import { CompositeCommand, findNode, PatchNodeCommand } from "../core/history";
 import type {
@@ -87,21 +87,7 @@ function basename(p: string): string {
   return i >= 0 ? s.slice(i + 1) : s;
 }
 
-export function resolveAssetAbsolute(
-  project: Project,
-  projectDir: string | null,
-  assetId: string | null,
-): string | null {
-  if (!projectDir || !assetId) {
-    return null;
-  }
-  const ref = project.assets.find((a) => a.id === assetId);
-  if (!ref) {
-    return null;
-  }
-  const rel = ref.path.replace(/^[/\\]+/, "");
-  return joinProjectPath(projectDir, rel);
-}
+export { resolveAssetAbsolute } from "../core/assetPath";
 
 function missingPlaceholder(width: number, height: number, hint: string): Konva.Group {
   const g = new Konva.Group();

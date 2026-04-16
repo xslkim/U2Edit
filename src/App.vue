@@ -720,6 +720,7 @@ function startDragPropsSplit(e: PointerEvent): void {
               <Properties
                 v-if="loadedProject"
                 :project="loadedProject"
+                :project-dir="projectDir"
                 :selection="selectionStore"
                 :commit-command="commitHistoryCommand"
                 :request-redraw="requestPropsRedraw"
