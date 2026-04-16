@@ -83,12 +83,12 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | 里程碑 | 状态 | 任务总数 | 完成数 | 进度 |
 |--------|------|---------|--------|------|
 | M0 — 工程搭建与 POC | `completed` | 7 | 7 | 100% |
-| M1 — 基础编辑器 | `in_progress` | 14 | 9 | 64% |
+| M1 — 基础编辑器 | `in_progress` | 14 | 10 | 71% |
 | M2 — 完整控件 & 资源 & 编辑操作 | `pending` | 12 | 0 | 0% |
 | M3 — Unity 导出 | `pending` | 3 | 0 | 0% |
 | M4 — Unreal 导出 | `pending` | 2 | 0 | 0% |
 | M5 — 打磨 | `pending` | 3 | 0 | 0% |
-| **总计** | | **41** | **16** | 39% |
+| **总计** | | **41** | **17** | 42% |
 
 ---
 
@@ -134,7 +134,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | T1.7 | 画布基础渲染（Konva 集成） | T1.5, T1.6 | `passed` | 0 | c60d1fc | [qa-reports/T1.7.md](../qa-reports/T1.7.md) | |
 | T1.8 | 画布缩放与平移 | T1.7 | `dev_done` | 0 | 1b1380a | [qa-reports/T1.8.md](../qa-reports/T1.8.md) | |
 | T1.9 | 单选与多选 | T1.7 | `dev_done` | 0 | dda6a01 | [qa-reports/T1.9.md](../qa-reports/T1.9.md) | `SelectionStore` + schema 命中；Properties 待 T1.11 |
-| T1.10 | 节点树面板（基础） | T1.9 | `pending` | 0 | | | |
+| T1.10 | 节点树面板（基础） | T1.9 | `dev_done` | 0 | PLACEHOLDER | [qa-reports/T1.10.md](../qa-reports/T1.10.md) | `NodeTree.vue`；锁定仅会话 |
 | T1.11 | Properties 面板（基础属性） | T1.9, T1.4 | `pending` | 0 | | | 含拖拽 label 调值 |
 | T1.12 | 拖拽移动节点 | T1.9, T1.4 | `pending` | 0 | | | |
 | T1.13 | 画布鼠标指针状态 | T1.12 | `pending` | 0 | | | |
@@ -303,6 +303,7 @@ QA 验证报告存放于 `qa-reports/` 目录，命名规则：`T{id}.md`
 | T1.7 | [qa-reports/T1.7.md](../qa-reports/T1.7.md) | Pass | 2026-04-16 |
 | T1.8 | [qa-reports/T1.8.md](../qa-reports/T1.8.md) | Pass（自动化 + 结构交付） | 2026-04-16 |
 | T1.9 | [qa-reports/T1.9.md](../qa-reports/T1.9.md) | Pass（自动化 + 结构交付） | 2026-04-16 |
+| T1.10 | [qa-reports/T1.10.md](../qa-reports/T1.10.md) | Pass（自动化 + 结构交付） | 2026-04-16 |
 
 > QA Agent 每验证完一个任务，在此表格追加一行。
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { message } from "@tauri-apps/plugin-dialog";
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import T06KonvaPerfPoc from "./poc/T06KonvaPerfPoc.vue";
 import T07KonvaImePoc from "./poc/T07KonvaImePoc.vue";
 import * as fileService from "./core/fileService";
@@ -21,6 +21,7 @@ import { applyWindowTitle } from "./core/windowTitle";
 import EditorCanvas from "./canvas/EditorCanvas.vue";
 import type { CanvasViewState } from "./canvas/renderer";
 import { SelectionStore } from "./canvas/selection";
+import NodeTree from "./panels/NodeTree.vue";
 
 const TREE_MIN = 150;
 const TREE_MAX = 500;
@@ -52,6 +53,33 @@ const canvasZoomPercent = ref<number | null>(null);
 /** T1.9 画布选中（与 Konva 同步） */
 const selectionStore = new SelectionStore();
 
+/** T1.10 仅内存锁定（YAML 不存） */
+const lockedNodeIds = ref<Set<string>>(new Set());
+const editorCanvasRef = ref<InstanceType<typeof EditorCanvas> | null>(null);
+
+function isNodeLocked(id: string): boolean {
+  return lockedNodeIds.value.has(id);
+}
+
+function toggleNodeLock(nodeId: string): void {
+  const s = new Set(lockedNodeIds.value);
+  if (s.has(nodeId)) {
+    s.delete(nodeId);
+  } else {
+    s.add(nodeId);
+  }
+  lockedNodeIds.value = s;
+}
+
+function clearNodeLocks(): void {
+  lockedNodeIds.value = new Set();
+}
+
+function onNodeTreeDirty(): void {
+  setDirty(true);
+  editorCanvasRef.value?.rebuildScene();
+}
+
 function onCanvasViewChange(s: CanvasViewState): void {
   canvasZoomPercent.value = s.zoomPercent;
 }
@@ -65,8 +93,21 @@ watch(loadedProject, (p) => {
   if (!p) {
     canvasZoomPercent.value = null;
     selectionStore.clear();
+    clearNodeLocks();
   }
 });
+
+watch(
+  () => [...selectionStore.selectedIds.value].sort().join(","),
+  () => {
+    const ids = [...selectionStore.selectedIds.value];
+    if (ids.length === 1) {
+      void nextTick(() => {
+        editorCanvasRef.value?.ensureNodeVisible(ids[0]);
+      });
+    }
+  },
+);
 
 const showNewDialog = ref(false);
 const newWizard = ref({
@@ -132,6 +173,8 @@ async function onOpenProject(): Promise<void> {
     const { project } = await loadProject(dir);
     loadedProject.value = project;
     projectDir.value = dir;
+    selectionStore.clear();
+    clearNodeLocks();
     setDirty(false);
     log(`已打开: ${dir}`);
   } catch (e) {
@@ -190,6 +233,8 @@ async function confirmNewProject(): Promise<void> {
     await saveProject(w.dir, proj);
     loadedProject.value = proj;
     projectDir.value = w.dir;
+    selectionStore.clear();
+    clearNodeLocks();
     setDirty(false);
     showNewDialog.value = false;
     log(`已新建: ${w.dir}`);
@@ -537,7 +582,16 @@ function startDragPropsSplit(e: PointerEvent): void {
             <span>节点树</span>
             <button type="button" class="icon-btn" title="隐藏" @click="showTree = false">×</button>
           </div>
-          <div class="panel__body placeholder">（节点树 · T1.10）</div>
+          <div class="panel__body panel__body--tree">
+            <NodeTree
+              v-if="loadedProject"
+              :root="loadedProject.nodes[0]"
+              :selection="selectionStore"
+              :locked-ids="lockedNodeIds"
+              @dirty="onNodeTreeDirty"
+              @toggle-lock="toggleNodeLock"
+            />
+          </div>
         </aside>
 
         <div
@@ -566,10 +620,12 @@ function startDragPropsSplit(e: PointerEvent): void {
               </button>
             </div>
             <EditorCanvas
+              ref="editorCanvasRef"
               class="canvas__stage"
               :project="loadedProject"
               :project-dir="projectDir!"
               :selection="selectionStore"
+              :is-node-locked="isNodeLocked"
               @view-change="onCanvasViewChange"
             />
           </template>
@@ -923,6 +979,13 @@ body,
   min-height: 0;
   overflow: auto;
   padding: 0.5rem;
+}
+
+.panel__body--tree {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
 }
 
 .panel__stack {

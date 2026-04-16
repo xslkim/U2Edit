@@ -25,6 +25,8 @@ import type { SelectionStore } from "./selection";
 import {
   altPickId,
   collectVisiblePaintOrder,
+  filterUnlockedNodes,
+  findNodeById,
   getCanvasAabb,
   idsFullyInsideMarquee,
   normalizeRect,
@@ -52,12 +54,18 @@ export interface MountProjectCanvasOptions {
   loadImage: ImageLoader;
   onViewChange?: (state: CanvasViewState) => void;
   selection: SelectionStore;
+  /** 仅编辑器内存锁定：命中测试忽略 */
+  isNodeLocked?: (id: string) => boolean;
 }
 
 export interface MountedCanvas {
   destroy(): void;
   redraw(): Promise<void>;
   refreshSelection(): void;
+  /** 仅重绘场景（无图片预加载），用于改 visible 等 */
+  rebuildScene(): void;
+  /** 将节点 AABB 平移进视口（画布坐标） */
+  ensureNodeVisible(nodeId: string): void;
   getStage(): Konva.Stage | null;
 }
 
@@ -605,6 +613,7 @@ const MARQUEE_THRESHOLD_PX = 4;
 
 export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanvas {
   const { container, project, projectDir, loadImage, onViewChange, selection } = opts;
+  const isNodeLocked = opts.isNodeLocked ?? ((): boolean => false);
   let stage: Konva.Stage | null = null;
   let mainLayer: Konva.Layer | null = null;
   let bgRect: Konva.Rect | null = null;
@@ -764,7 +773,8 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
 
     const canvasPt = stageToCanvas(p.x, p.y);
     const paintOrder = collectVisiblePaintOrder(project.nodes[0]);
-    const hits = nodesHitByPoint(paintOrder, canvasPt.x, canvasPt.y);
+    const hitsRaw = nodesHitByPoint(paintOrder, canvasPt.x, canvasPt.y);
+    const hits = filterUnlockedNodes(hitsRaw, isNodeLocked);
     const tid = topHitId(hits);
 
     if (tid) {
@@ -873,7 +883,14 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
           );
       const r = normalizeRect(canvasMarqueeStart.x, canvasMarqueeStart.y, c.x, c.y);
       const po = collectVisiblePaintOrder(project.nodes[0]);
-      selection.setAll(idsFullyInsideMarquee(po, r));
+      const rawIds = idsFullyInsideMarquee(po, r);
+      const unlocked = new Set<string>();
+      for (const id of rawIds) {
+        if (!isNodeLocked(id)) {
+          unlocked.add(id);
+        }
+      }
+      selection.setAll(unlocked);
       updateSelectionOverlay();
     } else if (emptyClickPending) {
       selection.clear();
@@ -1067,10 +1084,50 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     ro.observe(container);
   };
 
+  const rebuildScene = (): void => {
+    rebuildContent();
+  };
+
+  const ensureNodeVisible = (nodeId: string): void => {
+    const rootNode = project.nodes[0];
+    if (!rootNode || !stage) {
+      return;
+    }
+    const n = findNodeById(rootNode, nodeId);
+    if (!n) {
+      return;
+    }
+    const box = getCanvasAabb(n);
+    const sw = stage.width();
+    const sh = stage.height();
+    const mg = PAD;
+    let pan = { ...viewPan };
+    const sl = pan.x + box.x * viewScale;
+    const sr = pan.x + (box.x + box.width) * viewScale;
+    const st = pan.y + box.y * viewScale;
+    const sb = pan.y + (box.y + box.height) * viewScale;
+    if (sl < mg) {
+      pan.x += mg - sl;
+    }
+    if (sr > sw - mg) {
+      pan.x -= sr - (sw - mg);
+    }
+    if (st < mg) {
+      pan.y += mg - st;
+    }
+    if (sb > sh - mg) {
+      pan.y -= sb - (sh - mg);
+    }
+    viewPan = pan;
+    applyViewportTransform();
+  };
+
   return {
     destroy,
     redraw,
     refreshSelection: updateSelectionOverlay,
+    rebuildScene,
+    ensureNodeVisible,
     getStage: () => stage,
   };
 }

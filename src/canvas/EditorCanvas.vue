@@ -5,11 +5,17 @@ import type { Project } from "../core/schema";
 import { mountProjectCanvas, type CanvasViewState } from "./renderer";
 import type { SelectionStore } from "./selection";
 
-const props = defineProps<{
-  project: Project;
-  projectDir: string;
-  selection: SelectionStore;
-}>();
+const props = withDefaults(
+  defineProps<{
+    project: Project;
+    projectDir: string;
+    selection: SelectionStore;
+    isNodeLocked?: (id: string) => boolean;
+  }>(),
+  {
+    isNodeLocked: () => false,
+  },
+);
 
 const emit = defineEmits<{
   viewChange: [state: CanvasViewState];
@@ -57,9 +63,23 @@ function mount(): void {
     loadImage: loadImageFromDisk,
     onViewChange: (state) => emit("viewChange", state),
     selection: props.selection,
+    isNodeLocked: props.isNodeLocked,
   });
   void api.redraw();
 }
+
+function ensureNodeVisible(nodeId: string): void {
+  api?.ensureNodeVisible(nodeId);
+}
+
+function rebuildScene(): void {
+  api?.rebuildScene();
+}
+
+defineExpose({
+  ensureNodeVisible,
+  rebuildScene,
+});
 
 onMounted(async () => {
   await nextTick();

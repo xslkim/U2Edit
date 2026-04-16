@@ -1,6 +1,28 @@
 import type { Node } from "../core/schema";
 import { nodeTopLeft } from "./pivotMath";
 
+export function findNodeById(root: Node | undefined, id: string): Node | null {
+  if (!root) {
+    return null;
+  }
+  if (root.id === id) {
+    return root;
+  }
+  if ("children" in root && root.children.length) {
+    for (const c of root.children) {
+      const f = findNodeById(c, id);
+      if (f) {
+        return f;
+      }
+    }
+  }
+  return null;
+}
+
+export function filterUnlockedNodes(hits: Node[], isLocked: (id: string) => boolean): Node[] {
+  return hits.filter((n) => !isLocked(n.id));
+}
+
 /** 画布坐标系下的轴对齐包围盒（左上角 + 尺寸） */
 export interface CanvasAabb {
   x: number;

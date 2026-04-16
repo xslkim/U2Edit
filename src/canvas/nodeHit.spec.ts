@@ -3,6 +3,7 @@ import type { Node } from "../core/schema";
 import {
   altPickId,
   collectVisiblePaintOrder,
+  findNodeById,
   getCanvasAabb,
   idsFullyInsideMarquee,
   normalizeRect,
@@ -28,6 +29,26 @@ function img(id: string, x: number, y: number): Node {
 }
 
 describe("nodeHit", () => {
+  it("findNodeById walks tree", () => {
+    const inner = img("inner", 1, 1);
+    const tree: Node = {
+      id: "root",
+      name: "root",
+      type: "panel",
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 100,
+      pivot: "topLeft",
+      visible: true,
+      opacity: 1,
+      background: null,
+      children: [inner],
+    };
+    expect(findNodeById(tree, "inner")).toBe(inner);
+    expect(findNodeById(tree, "missing")).toBeNull();
+  });
+
   it("collectVisiblePaintOrder skips invisible", () => {
     const tree: Node = {
       id: "root",
