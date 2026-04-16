@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from "vue";
+import T06KonvaPerfPoc from "./poc/T06KonvaPerfPoc.vue";
 import * as fileService from "./core/fileService";
 import * as fileWatcher from "./core/fileWatcher";
 import { initWindowGuard, setWindowDirty } from "./core/windowGuard";
@@ -65,6 +66,8 @@ async function onTestExists(): Promise<void> {
   log(`exists(test.yaml) = ${ex}`);
 }
 
+const view = ref<"main" | "t06">("main");
+
 const useDirtyFlag = ref(false);
 
 function toggleDirty(): void {
@@ -106,10 +109,22 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="app-root">
-    <div class="panel">
+  <main class="app-root" :class="{ 'app-root--poc': view !== 'main' }">
+    <div v-if="view === 't06'" class="poc-shell">
+      <header class="poc-bar">
+        <button type="button" class="linkish" @click="view = 'main'">← 返回主 POC</button>
+        <span class="poc-title">T0.6 Konva 性能 POC</span>
+      </header>
+      <T06KonvaPerfPoc class="poc-canvas" />
+    </div>
+
+    <div v-else class="panel">
       <h1 class="title">LWB UI Editor</h1>
       <p class="hint">T0.2 / T0.3 POC：文件、关闭拦截、监听</p>
+
+      <div class="row">
+        <button type="button" @click="view = 't06'">打开 T0.6 Konva 性能 POC</button>
+      </div>
 
       <div class="row">
         <button type="button" @click="onPickDirectory">选择目录</button>
@@ -140,6 +155,49 @@ onUnmounted(() => {
   box-sizing: border-box;
   font-family: system-ui, sans-serif;
   background: #f4f4f5;
+}
+
+.app-root--poc {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.poc-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.poc-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: #fafafa;
+  border-bottom: 1px solid #e4e4e7;
+}
+
+.poc-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #18181b;
+}
+
+.linkish {
+  background: none;
+  border: none;
+  padding: 0.25rem 0;
+  color: #2563eb;
+  cursor: pointer;
+  font: inherit;
+}
+
+.poc-canvas {
+  flex: 1;
+  min-height: 0;
 }
 
 .panel {

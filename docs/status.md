@@ -9,7 +9,7 @@
 
 ## 0. 当前阶段说明（v1.1 新增）
 
-- **M0 进度**：T0.1–T0.3 已实现并 `passed`（见 §4）；其余 T0.4–T0.7 仍 `pending`。
+- **M0 进度**：T0.1–T0.3 已实现并 `passed`（见 §4）；**T0.6** 已 `dev_done`，待 QA 验收；T0.4、T0.5、T0.7 仍 `pending`。
 - **QA Agent 当前不进入 `testing` 状态**，避免把"未实现"误判为"实现错误"。QA 在本阶段做：
   1. 测试方案与文档审查（已产出本轮歧义清单）
   2. 准备 fixture（示例 YAML、压测脚本）与基线快照
@@ -100,7 +100,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 |---|--------|------|------|---------|---------|
 | D1 | Unreal 导出方案（A:Python / B:C++ / C:JSON+插件） | `待定` | — | — | T0.5 → T4.1 |
 | D2 | 文件监听方案（plugin-fs watch / 社区插件） | `已定` | 采用 **tauri-plugin-fs**（`watch` feature）+ 前端 `watch`/`watchImmediate`；见 `docs/poc-reports/T0.3-file-watch.md` | 2026-04-15 | T0.3 |
-| D3 | 画布渲染引擎（Konva.js / 替代方案） | `待定` | 预选 Konva.js，T0.6 验证 | — | T0.6 |
+| D3 | 画布渲染引擎（Konva.js / 替代方案） | `已定` | 采用 **Konva.js**；依据 `docs/poc-reports/T0.6-konva-perf.md` | 2026-04-16 | T0.6 |
 
 > **D1 是整个项目最大风险点。** T0.5 的 POC 结论直接决定 M4 的工作量（可能翻倍）。
 > 必须在 M3 启动前完成 T0.5 并填写此决策。
@@ -118,7 +118,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | T0.3 | 文件监听方案验证 | T0.2 | `passed` | 0 | e178c33 | [qa-reports/T0.3.md](../qa-reports/T0.3.md) | D2 已更新 |
 | T0.4 | Unity C# Editor 脚本 POC | — | `pending` | 0 | | | 独立引擎工程；**QA 测试暂缓**（见第 0 节） |
 | T0.5 | Unreal Python 脚本 POC ⚠️ | — | `pending` | 0 | | | **关键风险点**，结论填入 D1；**QA 测试暂缓** |
-| T0.6 | Konva.js 画布性能 POC | T0.1 | `pending` | 0 | | | 结论填入 D3 |
+| T0.6 | Konva.js 画布性能 POC | T0.1 | `dev_done` | 0 | 4885dc4 | | D3 已更新；待 QA |
 | T0.7 | 中文 IME 输入验证 | T0.1 | `pending` | 0 | | | |
 
 ### M1 — 基础编辑器
@@ -277,7 +277,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | # | 风险/阻塞 | 严重度 | 状态 | 关联任务 | 缓解措施 |
 |---|----------|--------|------|---------|---------|
 | R1 | Unreal Python API 能力不足 | **高** | 待验证 | T0.5 | 备选方案 B(C++) / C(JSON+插件)；T0.5 完成后更新 D1 |
-| R2 | Konva.js 300 节点性能不达标 | 中 | 待验证 | T0.6 | 备选 PixiJS；T0.6 完成后更新 D3 |
+| R2 | Konva.js 300 节点性能不达标 | 中 | 已缓解（POC 通过，见 T0.6 报告） | T0.6 | 真机极端环境仍待 M5 回归 |
 | R3 | Tauri 文件监听在 Windows 下不稳定 | 中 | 部分缓解 | T0.3 | 已选 plugin-fs watch；实机长期稳定性仍待观察 |
 | R4 | 中文 IME 与 Canvas 快捷键冲突 | 低 | 待验证 | T0.7 | compositionstart/end 事件屏蔽快捷键 |
 
