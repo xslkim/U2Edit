@@ -132,7 +132,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | T1.5 | 主窗口四面板布局 | T0.1 | `passed` | 0 | 6bc6aee | [qa-reports/T1.5.md](../qa-reports/T1.5.md) | |
 | T1.6 | 新建/打开/保存项目 | T1.2, T1.5 | `passed` | 0 | 3aa6c17 | [qa-reports/T1.6.md](../qa-reports/T1.6.md) | |
 | T1.7 | 画布基础渲染（Konva 集成） | T1.5, T1.6 | `passed` | 0 | c60d1fc | [qa-reports/T1.7.md](../qa-reports/T1.7.md) | |
-| T1.8 | 画布缩放与平移 | T1.7 | `dev_done` | 0 | 1d03f02 | [qa-reports/T1.8.md](../qa-reports/T1.8.md) | `viewTransform.ts` + renderer 视口；StatusBar 选中数为占位至 T1.9 |
+| T1.8 | 画布缩放与平移 | T1.7 | `dev_done` | 0 | 1b1380a | [qa-reports/T1.8.md](../qa-reports/T1.8.md) | `viewTransform.ts` + renderer 视口；StatusBar 选中数为占位至 T1.9 |
 | T1.9 | 单选与多选 | T1.7 | `pending` | 0 | | | |
 | T1.10 | 节点树面板（基础） | T1.9 | `pending` | 0 | | | |
 | T1.11 | Properties 面板（基础属性） | T1.9, T1.4 | `pending` | 0 | | | 含拖拽 label 调值 |
