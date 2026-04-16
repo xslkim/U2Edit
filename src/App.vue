@@ -11,9 +11,16 @@ import {
   loadProject,
   saveProject,
 } from "./core/project";
+import {
+  createNodeWithDefaults,
+  defaultSizeForType,
+  nextAutoNodeId,
+  placementTopLeftInParent,
+  resolveInsertParentId,
+} from "./core/addNodeHelpers";
 import type { Command } from "./core/history";
-import { HistoryStack } from "./core/history";
-import type { Project } from "./core/schema";
+import { AddNodeCommand, getChildList, HistoryStack } from "./core/history";
+import type { NodeType, Project } from "./core/schema";
 import {
   initWindowGuard,
   setCloseSaveHandler,
@@ -24,6 +31,7 @@ import EditorCanvas from "./canvas/EditorCanvas.vue";
 import type { CanvasViewState } from "./canvas/renderer";
 import { SelectionStore } from "./canvas/selection";
 import NodeTree from "./panels/NodeTree.vue";
+import ControlAddToolbar from "./panels/ControlAddToolbar.vue";
 import Properties from "./panels/Properties.vue";
 
 const TREE_MIN = 150;
@@ -94,6 +102,28 @@ function commitHistoryCommand(cmd: Command): void {
 
 function requestPropsRedraw(): void {
   editorCanvasRef.value?.rebuildScene();
+}
+
+function onAddControl(type: NodeType): void {
+  const p = loadedProject.value;
+  if (!p || !projectDir.value) {
+    return;
+  }
+  const vc = editorCanvasRef.value?.getViewportCenterCanvas();
+  if (!vc) {
+    return;
+  }
+  const parentId = resolveInsertParentId(p, selectionStore.selectedIds.value);
+  const { width, height } = defaultSizeForType(type);
+  const pos = placementTopLeftInParent(p, parentId, vc, width, height);
+  const id = nextAutoNodeId(p, type);
+  const node = createNodeWithDefaults(type, id, id, pos.x, pos.y);
+  const list = getChildList(p, parentId);
+  commitHistoryCommand(new AddNodeCommand(p, parentId, list.length, node, `添加 ${type}`));
+  selectionStore.selectOnly(id);
+  void nextTick(() => {
+    editorCanvasRef.value?.ensureNodeVisible(id);
+  });
 }
 
 function isEditableDomTarget(t: EventTarget | null): boolean {
@@ -627,6 +657,8 @@ function startDragPropsSplit(e: PointerEvent): void {
           <button type="button" class="btn-sm" @click="view = 't07'">T0.7 IME</button>
         </div>
       </header>
+
+      <ControlAddToolbar v-if="loadedProject && projectDir" @add="onAddControl" />
 
       <div class="workspace">
         <aside

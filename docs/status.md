@@ -83,12 +83,12 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | 里程碑 | 状态 | 任务总数 | 完成数 | 进度 |
 |--------|------|---------|--------|------|
 | M0 — 工程搭建与 POC | `completed` | 7 | 7 | 100% |
-| M1 — 基础编辑器 | `in_progress` | 14 | 14 | 100% |
-| M2 — 完整控件 & 资源 & 编辑操作 | `pending` | 12 | 0 | 0% |
+| M1 — 基础编辑器 | `completed` | 14 | 14 | 100% |
+| M2 — 完整控件 & 资源 & 编辑操作 | `in_progress` | 12 | 1 | 8% |
 | M3 — Unity 导出 | `pending` | 3 | 0 | 0% |
 | M4 — Unreal 导出 | `pending` | 2 | 0 | 0% |
 | M5 — 打磨 | `pending` | 3 | 0 | 0% |
-| **总计** | | **41** | **21** | 51% |
+| **总计** | | **41** | **22** | 54% |
 
 ---
 
@@ -144,7 +144,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 
 | ID | 任务标题 | 依赖 | 状态 | retry | commit | 报告 | 备注 |
 |----|---------|------|------|-------|--------|------|------|
-| T2.1 | Toolbar 控件添加按钮 | T1.11 | `pending` | 0 | | | |
+| T2.1 | Toolbar 控件添加按钮 | T1.11 | `dev_done` | 0 | PLACEHOLDER | [qa-reports/T2.1.md](../qa-reports/T2.1.md) | `ControlAddToolbar`；`addNodeHelpers` |
 | T2.2 | 右键菜单（画布 + 节点树） | T2.1, T1.10 | `pending` | 0 | | | |
 | T2.3 | 复制粘贴删除 | T2.1, T1.4 | `pending` | 0 | | | |
 | T2.4 | 层级调整 | T2.2, T1.4 | `pending` | 0 | | | |

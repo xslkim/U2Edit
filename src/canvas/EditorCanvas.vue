@@ -79,9 +79,14 @@ function rebuildScene(): void {
   api?.rebuildScene();
 }
 
+function getViewportCenterCanvas(): { x: number; y: number } | null {
+  return api?.getViewportCenterCanvas() ?? null;
+}
+
 defineExpose({
   ensureNodeVisible,
   rebuildScene,
+  getViewportCenterCanvas,
 });
 
 onMounted(async () => {

@@ -75,6 +75,8 @@ export interface MountedCanvas {
   /** 将节点 AABB 平移进视口（画布坐标） */
   ensureNodeVisible(nodeId: string): void;
   getStage(): Konva.Stage | null;
+  /** 当前视口中心在根画布坐标系中的点（与 stage 坐标一致） */
+  getViewportCenterCanvas(): { x: number; y: number } | null;
 }
 
 const PAD = 16;
@@ -1366,6 +1368,13 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     applyViewportTransform();
   };
 
+  const getViewportCenterCanvas = (): { x: number; y: number } | null => {
+    if (!stage) {
+      return null;
+    }
+    return stageToCanvas(stage.width() / 2, stage.height() / 2);
+  };
+
   return {
     destroy,
     redraw,
@@ -1373,5 +1382,6 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     rebuildScene,
     ensureNodeVisible,
     getStage: () => stage,
+    getViewportCenterCanvas,
   };
 }
