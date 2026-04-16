@@ -16,7 +16,8 @@ import type {
   TextNode,
   ToggleNode,
 } from "./schema";
-import { CURRENT_SCHEMA_VERSION } from "./schema";
+import { UnsupportedSchemaError } from "./errors";
+import { getReadableSchemaCap } from "./schemaVersionPolicy";
 
 export interface ValidationError {
   /** JSON Pointer 风格或语义路径，如 `nodes[2].id` */
@@ -276,29 +277,46 @@ function parseExport(raw: unknown): ExportConfig {
   };
 }
 
-/**
- * 将 `project.yaml` 文本解析为 `Project`（严格结构，失败抛错）。
- */
-export function parseProjectYaml(content: string): Project {
-  const loaded = yaml.load(content) as unknown;
-  if (!isRecord(loaded)) {
-    throw new Error("YAML 根必须为 mapping");
+function assertReadableSchemaVersion(v: number): void {
+  if (typeof v !== "number" || Number.isNaN(v) || v < 1 || v > getReadableSchemaCap()) {
+    throw new UnsupportedSchemaError(
+      `不支持的 schemaVersion: ${String(v)}（可读上限 ${getReadableSchemaCap()}）`,
+    );
   }
+}
+
+function buildProjectFromLoaded(loaded: Record<string, unknown>): Project {
   const nodesRaw = loaded.nodes;
   if (!Array.isArray(nodesRaw)) {
     throw new Error("nodes 必须为数组");
   }
   const nodes = nodesRaw.map((n, i) => parseNode(n, `nodes[${i}]`));
-  const project: Project = {
+  return {
     meta: parseMeta(loaded.meta),
     assets: parseAssets(loaded.assets),
     nodes,
     export: parseExport(loaded.export),
   };
-  if (project.meta.schemaVersion !== CURRENT_SCHEMA_VERSION) {
-    throw new Error(`不支持的 schemaVersion: ${String(project.meta.schemaVersion)}（当前 ${CURRENT_SCHEMA_VERSION}）`);
+}
+
+/**
+ * 将已反序列化的 YAML 根对象解析为 `Project`（用于迁移后与 `migrate` 衔接）。
+ */
+export function parseProjectObject(loaded: unknown): Project {
+  if (!isRecord(loaded)) {
+    throw new Error("YAML 根必须为 mapping");
   }
+  const project = buildProjectFromLoaded(loaded);
+  assertReadableSchemaVersion(project.meta.schemaVersion);
   return project;
+}
+
+/**
+ * 将 `project.yaml` 文本解析为 `Project`（严格结构，失败抛错）。
+ */
+export function parseProjectYaml(content: string): Project {
+  const loaded = yaml.load(content) as unknown;
+  return parseProjectObject(loaded);
 }
 
 const DUMP_OPTS: yaml.DumpOptions = {
