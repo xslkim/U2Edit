@@ -21,6 +21,18 @@ import {
   wheelScaleFactor,
   zoomAtScreenPoint,
 } from "./viewTransform";
+import type { SelectionStore } from "./selection";
+import {
+  altPickId,
+  collectVisiblePaintOrder,
+  getCanvasAabb,
+  idsFullyInsideMarquee,
+  normalizeRect,
+  nodesHitByPoint,
+  topHitId,
+  type CanvasAabb,
+} from "./nodeHit";
+import { buildSelectionOverlayLayer } from "./selectionOverlay";
 
 /** 从磁盘绝对路径加载位图（由宿主注入；失败返回 null） */
 export type ImageLoader = (absolutePath: string) => Promise<HTMLImageElement | null>;
@@ -39,11 +51,13 @@ export interface MountProjectCanvasOptions {
   projectDir: string | null;
   loadImage: ImageLoader;
   onViewChange?: (state: CanvasViewState) => void;
+  selection: SelectionStore;
 }
 
 export interface MountedCanvas {
   destroy(): void;
   redraw(): Promise<void>;
+  refreshSelection(): void;
   getStage(): Konva.Stage | null;
 }
 
@@ -587,8 +601,10 @@ function isEditableDomTarget(t: EventTarget | null): boolean {
   return el.isContentEditable === true;
 }
 
+const MARQUEE_THRESHOLD_PX = 4;
+
 export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanvas {
-  const { container, project, projectDir, loadImage, onViewChange } = opts;
+  const { container, project, projectDir, loadImage, onViewChange, selection } = opts;
   let stage: Konva.Stage | null = null;
   let mainLayer: Konva.Layer | null = null;
   let bgRect: Konva.Rect | null = null;
@@ -604,6 +620,53 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
   let panDragging = false;
   let panPointerStart = { x: 0, y: 0 };
   let panViewStart = { x: 0, y: 0 };
+
+  let selectionOverlayGroup: Konva.Group | null = null;
+  let marqueeRectKonva: Konva.Rect | null = null;
+  let emptyClickPending = false;
+  let marqueeActive = false;
+  let screenMarqueeStart: { x: number; y: number } | null = null;
+  let canvasMarqueeStart: { x: number; y: number } | null = null;
+  let altDrillIndex = 0;
+
+  const stageToCanvas = (sx: number, sy: number): { x: number; y: number } => ({
+    x: (sx - viewPan.x) / viewScale,
+    y: (sy - viewPan.y) / viewScale,
+  });
+
+  const destroyMarqueeVisual = (): void => {
+    marqueeRectKonva?.destroy();
+    marqueeRectKonva = null;
+  };
+
+  const updateSelectionOverlay = (): void => {
+    selectionOverlayGroup?.destroy();
+    selectionOverlayGroup = null;
+    if (!world) {
+      return;
+    }
+    const ids = selection.selectedIds.value;
+    if (ids.size === 0) {
+      mainLayer?.batchDraw();
+      return;
+    }
+    const paintOrder = collectVisiblePaintOrder(project.nodes[0]);
+    const byId = new Map(paintOrder.map((n) => [n.id, n]));
+    const boxes: CanvasAabb[] = [];
+    for (const id of ids) {
+      const n = byId.get(id);
+      if (n) {
+        boxes.push(getCanvasAabb(n));
+      }
+    }
+    if (boxes.length === 0) {
+      mainLayer?.batchDraw();
+      return;
+    }
+    selectionOverlayGroup = buildSelectionOverlayLayer(boxes);
+    world.add(selectionOverlayGroup);
+    mainLayer?.batchDraw();
+  };
 
   const notifyView = (): void => {
     onViewChange?.({
@@ -677,37 +740,166 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
   const onStageMouseDown = (e: Konva.KonvaEventObject<MouseEvent>): void => {
     const ev = e.evt;
     const wantPan = ev.button === 1 || (spaceHeld && ev.button === 0);
-    if (!wantPan) {
+    if (wantPan) {
+      ev.preventDefault();
+      panDragging = true;
+      panPointerStart = { x: ev.clientX, y: ev.clientY };
+      panViewStart = { ...viewPan };
+      updateContainerCursor();
       return;
     }
-    ev.preventDefault();
-    panDragging = true;
-    panPointerStart = { x: ev.clientX, y: ev.clientY };
-    panViewStart = { ...viewPan };
-    updateContainerCursor();
+
+    if (ev.button !== 0 || !stage) {
+      return;
+    }
+
+    const p = stage.getPointerPosition();
+    if (!p) {
+      return;
+    }
+
+    if (!ev.altKey) {
+      altDrillIndex = 0;
+    }
+
+    const canvasPt = stageToCanvas(p.x, p.y);
+    const paintOrder = collectVisiblePaintOrder(project.nodes[0]);
+    const hits = nodesHitByPoint(paintOrder, canvasPt.x, canvasPt.y);
+    const tid = topHitId(hits);
+
+    if (tid) {
+      emptyClickPending = false;
+      destroyMarqueeVisual();
+      marqueeActive = false;
+      screenMarqueeStart = null;
+      canvasMarqueeStart = null;
+      if (ev.ctrlKey || ev.metaKey) {
+        selection.toggle(tid);
+      } else if (ev.altKey && hits.length > 0) {
+        const pick = altPickId(hits, altDrillIndex);
+        if (pick) {
+          selection.selectOnly(pick);
+          altDrillIndex++;
+        }
+      } else {
+        selection.selectOnly(tid);
+      }
+      updateSelectionOverlay();
+      return;
+    }
+
+    if (ev.ctrlKey || ev.metaKey || ev.altKey) {
+      return;
+    }
+
+    emptyClickPending = true;
+    marqueeActive = false;
+    screenMarqueeStart = { x: p.x, y: p.y };
+    canvasMarqueeStart = { x: canvasPt.x, y: canvasPt.y };
+    destroyMarqueeVisual();
   };
 
   const onWindowMouseMove = (e: MouseEvent): void => {
-    if (!panDragging) {
+    if (panDragging) {
+      e.preventDefault();
+      const dx = e.clientX - panPointerStart.x;
+      const dy = e.clientY - panPointerStart.y;
+      viewPan = { x: panViewStart.x + dx, y: panViewStart.y + dy };
+      applyViewportTransform();
       return;
     }
-    e.preventDefault();
-    const dx = e.clientX - panPointerStart.x;
-    const dy = e.clientY - panPointerStart.y;
-    viewPan = { x: panViewStart.x + dx, y: panViewStart.y + dy };
-    applyViewportTransform();
+
+    if (!stage || !screenMarqueeStart || !canvasMarqueeStart) {
+      return;
+    }
+
+    const p = stage.getPointerPosition();
+    if (!p) {
+      return;
+    }
+
+    if (!marqueeActive && emptyClickPending) {
+      const d = Math.hypot(p.x - screenMarqueeStart.x, p.y - screenMarqueeStart.y);
+      if (d > MARQUEE_THRESHOLD_PX) {
+        marqueeActive = true;
+        emptyClickPending = false;
+        marqueeRectKonva = new Konva.Rect({
+          stroke: "#2563eb",
+          dash: [4, 4],
+          strokeWidth: 1,
+          fill: "rgba(37, 99, 235, 0.08)",
+          listening: false,
+        });
+        world?.add(marqueeRectKonva);
+      }
+    }
+
+    if (marqueeActive && marqueeRectKonva && canvasMarqueeStart) {
+      const c = stageToCanvas(p.x, p.y);
+      const r = normalizeRect(canvasMarqueeStart.x, canvasMarqueeStart.y, c.x, c.y);
+      marqueeRectKonva.setAttrs({
+        x: r.x,
+        y: r.y,
+        width: r.width,
+        height: r.height,
+      });
+      mainLayer?.batchDraw();
+    }
   };
 
-  const onWindowMouseUp = (): void => {
-    if (!panDragging) {
+  const onWindowMouseUp = (e: MouseEvent): void => {
+    if (panDragging) {
+      panDragging = false;
+      updateContainerCursor();
       return;
     }
-    panDragging = false;
-    updateContainerCursor();
+
+    if (!stage || !canvasMarqueeStart) {
+      emptyClickPending = false;
+      marqueeActive = false;
+      screenMarqueeStart = null;
+      canvasMarqueeStart = null;
+      destroyMarqueeVisual();
+      return;
+    }
+
+    if (marqueeActive && marqueeRectKonva) {
+      const p = stage.getPointerPosition();
+      const c = p
+        ? stageToCanvas(p.x, p.y)
+        : stageToCanvas(
+            e.clientX - container.getBoundingClientRect().left,
+            e.clientY - container.getBoundingClientRect().top,
+          );
+      const r = normalizeRect(canvasMarqueeStart.x, canvasMarqueeStart.y, c.x, c.y);
+      const po = collectVisiblePaintOrder(project.nodes[0]);
+      selection.setAll(idsFullyInsideMarquee(po, r));
+      updateSelectionOverlay();
+    } else if (emptyClickPending) {
+      selection.clear();
+      updateSelectionOverlay();
+    }
+
+    emptyClickPending = false;
+    marqueeActive = false;
+    screenMarqueeStart = null;
+    canvasMarqueeStart = null;
+    destroyMarqueeVisual();
   };
 
   const onWindowKeyDown = (e: KeyboardEvent): void => {
     if (e.repeat) {
+      return;
+    }
+    if (e.key === "Escape" && !isEditableDomTarget(e.target)) {
+      e.preventDefault();
+      selection.clear();
+      emptyClickPending = false;
+      marqueeActive = false;
+      screenMarqueeStart = null;
+      canvasMarqueeStart = null;
+      destroyMarqueeVisual();
+      updateSelectionOverlay();
       return;
     }
     if (e.code === "Space" && !isEditableDomTarget(e.target)) {
@@ -803,6 +995,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
       }
     }
     applyViewportTransform();
+    updateSelectionOverlay();
   };
 
   const redraw = async (): Promise<void> => {
@@ -877,6 +1070,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
   return {
     destroy,
     redraw,
+    refreshSelection: updateSelectionOverlay,
     getStage: () => stage,
   };
 }

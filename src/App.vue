@@ -20,6 +20,7 @@ import {
 import { applyWindowTitle } from "./core/windowTitle";
 import EditorCanvas from "./canvas/EditorCanvas.vue";
 import type { CanvasViewState } from "./canvas/renderer";
+import { SelectionStore } from "./canvas/selection";
 
 const TREE_MIN = 150;
 const TREE_MAX = 500;
@@ -47,25 +48,23 @@ const isDirty = ref(false);
 
 /** T1.8 画布视口（来自 Konva）；无项目时为 null */
 const canvasZoomPercent = ref<number | null>(null);
-/** T1.9 将接入真实选中；当前供状态栏与调试 */
-const selectedNodeCount = ref(0);
+
+/** T1.9 画布选中（与 Konva 同步） */
+const selectionStore = new SelectionStore();
 
 function onCanvasViewChange(s: CanvasViewState): void {
   canvasZoomPercent.value = s.zoomPercent;
 }
 
-const statusSelectionLabel = computed(() =>
-  selectedNodeCount.value > 0 ? `已选中 ${selectedNodeCount.value}` : `选中 ${selectedNodeCount.value}`,
-);
-
-function bumpSelectedCount(delta: number): void {
-  selectedNodeCount.value = Math.min(99, Math.max(0, selectedNodeCount.value + delta));
-}
+const statusSelectionLabel = computed(() => {
+  const n = selectionStore.selectedIds.value.size;
+  return n > 0 ? `已选中 ${n}` : `选中 ${n}`;
+});
 
 watch(loadedProject, (p) => {
   if (!p) {
     canvasZoomPercent.value = null;
-    selectedNodeCount.value = 0;
+    selectionStore.clear();
   }
 });
 
@@ -570,6 +569,7 @@ function startDragPropsSplit(e: PointerEvent): void {
               class="canvas__stage"
               :project="loadedProject"
               :project-dir="projectDir!"
+              :selection="selectionStore"
               @view-change="onCanvasViewChange"
             />
           </template>
@@ -686,11 +686,6 @@ function startDragPropsSplit(e: PointerEvent): void {
           <div class="row">
             <button type="button" @click="toggleDirty">切换 dirty（关闭拦截）</button>
             <button type="button" @click="toggleWatch">{{ watching ? "停止监听" : "监听" }} test.yaml</button>
-          </div>
-          <div class="row">
-            <span class="toolbar__hint">T1.8 状态栏「选中数」调试</span>
-            <button type="button" @click="bumpSelectedCount(1)">+1</button>
-            <button type="button" @click="bumpSelectedCount(-1)">−1</button>
           </div>
           <pre class="log">{{ logLines.join("\n") || "日志…" }}</pre>
         </div>

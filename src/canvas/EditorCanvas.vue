@@ -3,10 +3,12 @@ import { readFile } from "@tauri-apps/plugin-fs";
 import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import type { Project } from "../core/schema";
 import { mountProjectCanvas, type CanvasViewState } from "./renderer";
+import type { SelectionStore } from "./selection";
 
 const props = defineProps<{
   project: Project;
   projectDir: string;
+  selection: SelectionStore;
 }>();
 
 const emit = defineEmits<{
@@ -54,6 +56,7 @@ function mount(): void {
     projectDir: props.projectDir,
     loadImage: loadImageFromDisk,
     onViewChange: (state) => emit("viewChange", state),
+    selection: props.selection,
   });
   void api.redraw();
 }
@@ -69,6 +72,13 @@ watch(
     mount();
   },
   { deep: true },
+);
+
+watch(
+  () => props.selection.selectedIds.value,
+  () => {
+    api?.refreshSelection();
+  },
 );
 
 onUnmounted(() => {
