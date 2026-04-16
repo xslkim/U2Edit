@@ -53,6 +53,15 @@ export interface CanvasViewState {
   gridStep: number;
 }
 
+/** 画布右键：client 为屏幕坐标，canvas 为根画布坐标；hitNodeId 为右键点最上层节点（含锁定） */
+export interface CanvasContextMenuPayload {
+  clientX: number;
+  clientY: number;
+  canvasX: number;
+  canvasY: number;
+  hitNodeId: string | null;
+}
+
 export interface MountProjectCanvasOptions {
   container: HTMLDivElement;
   project: Project;
@@ -64,6 +73,8 @@ export interface MountProjectCanvasOptions {
   isNodeLocked?: (id: string) => boolean;
   /** T1.12：松手时入栈；未传则仅不记录历史 */
   commitCommand?: (cmd: Command) => void;
+  /** 画布右键菜单（已 preventDefault） */
+  onContextMenu?: (payload: CanvasContextMenuPayload) => void;
 }
 
 export interface MountedCanvas {
@@ -608,7 +619,8 @@ function isEditableDomTarget(t: EventTarget | null): boolean {
 const MARQUEE_THRESHOLD_PX = 4;
 
 export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanvas {
-  const { container, project, projectDir, loadImage, onViewChange, selection, commitCommand } = opts;
+  const { container, project, projectDir, loadImage, onViewChange, selection, commitCommand, onContextMenu } =
+    opts;
   const isNodeLocked = opts.isNodeLocked ?? ((): boolean => false);
   let stage: Konva.Stage | null = null;
   let mainLayer: Konva.Layer | null = null;
@@ -905,6 +917,44 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     screenMarqueeStart = { x: p.x, y: p.y };
     canvasMarqueeStart = { x: canvasPt.x, y: canvasPt.y };
     destroyMarqueeVisual();
+  };
+
+  const onStageContextMenu = (e: Konva.KonvaEventObject<PointerEvent | MouseEvent>): void => {
+    e.evt.preventDefault();
+    if (!stage || !onContextMenu) {
+      return;
+    }
+    const ev = e.evt;
+    const p = stage.getPointerPosition();
+    if (!p) {
+      return;
+    }
+    const canvasPt = stageToCanvas(p.x, p.y);
+    const root = project.nodes[0];
+    if (!root) {
+      onContextMenu({
+        clientX: ev.clientX,
+        clientY: ev.clientY,
+        canvasX: canvasPt.x,
+        canvasY: canvasPt.y,
+        hitNodeId: null,
+      });
+      return;
+    }
+    const paintOrder = collectVisiblePaintOrder(root);
+    const hitsRaw = nodesHitByPoint(paintOrder, canvasPt.x, canvasPt.y);
+    const tid = topHitId(hitsRaw);
+    if (tid) {
+      selection.selectOnly(tid);
+      updateSelectionOverlay();
+    }
+    onContextMenu({
+      clientX: ev.clientX,
+      clientY: ev.clientY,
+      canvasX: canvasPt.x,
+      canvasY: canvasPt.y,
+      hitNodeId: tid,
+    });
   };
 
   const onWindowMouseMove = (e: MouseEvent): void => {
@@ -1215,6 +1265,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     window.removeEventListener("keyup", onWindowKeyUp);
     stage?.off("wheel", onWheel);
     stage?.off("mousedown", onStageMouseDown);
+    stage?.off("contextmenu", onStageContextMenu);
     stage?.destroy();
     stage = null;
     mainLayer = null;
@@ -1269,6 +1320,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     window.removeEventListener("keyup", onWindowKeyUp);
     stage?.off("wheel", onWheel);
     stage?.off("mousedown", onStageMouseDown);
+    stage?.off("contextmenu", onStageContextMenu);
     stage?.destroy();
     stage = null;
     mainLayer = null;
@@ -1318,6 +1370,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
 
     stage.on("wheel", onWheel);
     stage.on("mousedown", onStageMouseDown);
+    stage.on("contextmenu", onStageContextMenu);
     window.addEventListener("mousemove", onWindowMouseMove);
     window.addEventListener("mouseup", onWindowMouseUp);
     window.addEventListener("keydown", onWindowKeyDown);

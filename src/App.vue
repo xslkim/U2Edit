@@ -19,8 +19,22 @@ import {
   resolveInsertParentId,
 } from "./core/addNodeHelpers";
 import type { Command } from "./core/history";
-import { AddNodeCommand, getChildList, HistoryStack } from "./core/history";
-import type { NodeType, Project } from "./core/schema";
+import {
+  AddNodeCommand,
+  findNode,
+  getChildList,
+  HistoryStack,
+  RemoveNodeCommand,
+} from "./core/history";
+import type { Node, NodeType, Project } from "./core/schema";
+import {
+  buildPasteCommand,
+  clipboardHasRoots,
+  copyRootsFromSelection,
+} from "./core/nodeClipboard";
+import { reorderCommandForNode } from "./core/reorderNode";
+import type { CanvasContextMenuPayload } from "./canvas/renderer";
+import ContextMenu from "./components/ContextMenu.vue";
 import {
   initWindowGuard,
   setCloseSaveHandler,
@@ -70,6 +84,207 @@ const history = new HistoryStack();
 /** T1.10 仅内存锁定（YAML 不存） */
 const lockedNodeIds = ref<Set<string>>(new Set());
 const editorCanvasRef = ref<InstanceType<typeof EditorCanvas> | null>(null);
+
+/** T2.2 / T2.3：内存剪贴板（子树根列表） */
+const memoryClipboardRoots = ref<Node[] | null>(null);
+
+type CtxMenuKind = "canvas-blank" | "canvas-node" | "tree";
+const ctxMenuOpen = ref(false);
+const ctxMenuX = ref(0);
+const ctxMenuY = ref(0);
+const ctxMenuKind = ref<CtxMenuKind>("canvas-blank");
+/** 画布右键位置（根坐标中心点）；节点树菜单粘贴时用视口中心 */
+const ctxCanvasPoint = ref<{ x: number; y: number } | null>(null);
+const ctxTreeNodeId = ref<string | null>(null);
+
+function closeCtxMenu(): void {
+  ctxMenuOpen.value = false;
+}
+
+function rootPanelId(): string | null {
+  return loadedProject.value?.nodes[0]?.id ?? null;
+}
+
+const ctxTargetNodeId = computed((): string | null => {
+  if (ctxMenuKind.value === "tree") {
+    return ctxTreeNodeId.value;
+  }
+  if (ctxMenuKind.value === "canvas-node") {
+    const id = [...selectionStore.selectedIds.value][0];
+    return id ?? null;
+  }
+  return null;
+});
+
+const ctxMenuVariant = computed((): "blank" | "node-canvas" | "node-tree" => {
+  if (ctxMenuKind.value === "canvas-blank") {
+    return "blank";
+  }
+  if (ctxMenuKind.value === "tree") {
+    return "node-tree";
+  }
+  return "node-canvas";
+});
+
+const ctxPasteDisabled = computed(() => !clipboardHasRoots(memoryClipboardRoots.value));
+
+const ctxCopyDeleteLockDisabled = computed(() => {
+  const id = ctxTargetNodeId.value;
+  const rid = rootPanelId();
+  if (!id || !rid) {
+    return { copy: true, delete: true, lock: true };
+  }
+  const isRoot = id === rid;
+  const locked = isNodeLocked(id);
+  return {
+    copy: isRoot,
+    delete: isRoot || locked,
+    lock: isRoot,
+  };
+});
+
+const ctxReorderDisabled = computed(() => {
+  const id = ctxTargetNodeId.value;
+  const p = loadedProject.value;
+  if (!p || !id) {
+    return { up: true, down: true, front: true, back: true };
+  }
+  if (isNodeLocked(id)) {
+    return { up: true, down: true, front: true, back: true };
+  }
+  const f = findNode(p, id);
+  if (!f?.parent) {
+    return { up: true, down: true, front: true, back: true };
+  }
+  const list = getChildList(p, f.parent.id);
+  const i = f.index;
+  const len = list.length;
+  return {
+    up: i >= len - 1,
+    down: i <= 0,
+    front: i >= len - 1,
+    back: i <= 0,
+  };
+});
+
+const ctxLockLabel = computed((): "锁定" | "解锁" => {
+  const id = ctxTargetNodeId.value;
+  if (!id) {
+    return "锁定";
+  }
+  return isNodeLocked(id) ? "解锁" : "锁定";
+});
+
+function onCanvasContextMenu(payload: CanvasContextMenuPayload): void {
+  if (!loadedProject.value) {
+    return;
+  }
+  ctxMenuX.value = payload.clientX;
+  ctxMenuY.value = payload.clientY;
+  ctxCanvasPoint.value = { x: payload.canvasX, y: payload.canvasY };
+  ctxTreeNodeId.value = null;
+  ctxMenuKind.value = payload.hitNodeId ? "canvas-node" : "canvas-blank";
+  ctxMenuOpen.value = true;
+}
+
+function onTreeRowContextMenu(payload: { nodeId: string; clientX: number; clientY: number }): void {
+  if (!loadedProject.value) {
+    return;
+  }
+  selectionStore.selectOnly(payload.nodeId);
+  ctxMenuX.value = payload.clientX;
+  ctxMenuY.value = payload.clientY;
+  ctxCanvasPoint.value = null;
+  ctxTreeNodeId.value = payload.nodeId;
+  ctxMenuKind.value = "tree";
+  ctxMenuOpen.value = true;
+}
+
+function onCtxCopy(): void {
+  const p = loadedProject.value;
+  if (!p) {
+    return;
+  }
+  memoryClipboardRoots.value = copyRootsFromSelection(p, selectionStore.selectedIds.value);
+}
+
+function onCtxPaste(): void {
+  const p = loadedProject.value;
+  if (!p) {
+    return;
+  }
+  const parentId = resolveInsertParentId(p, selectionStore.selectedIds.value);
+  const placement =
+    ctxCanvasPoint.value != null
+      ? ({ kind: "canvas", x: ctxCanvasPoint.value.x, y: ctxCanvasPoint.value.y } as const)
+      : (() => {
+          const vc = editorCanvasRef.value?.getViewportCenterCanvas();
+          if (!vc) {
+            return null;
+          }
+          return { kind: "viewport-center" as const, center: vc };
+        })();
+  if (!placement) {
+    return;
+  }
+  const cmd = buildPasteCommand(p, memoryClipboardRoots.value, parentId, placement);
+  if (!cmd) {
+    return;
+  }
+  commitHistoryCommand(cmd);
+}
+
+function onCtxDelete(): void {
+  const p = loadedProject.value;
+  const id = ctxTargetNodeId.value;
+  const rid = rootPanelId();
+  if (!p || !id || !rid || id === rid) {
+    return;
+  }
+  commitHistoryCommand(new RemoveNodeCommand(p, id, "删除"));
+  selectionStore.clear();
+}
+
+function onCtxReorder(mode: "up" | "down" | "front" | "back"): void {
+  const p = loadedProject.value;
+  const id = ctxTargetNodeId.value;
+  if (!p || !id) {
+    return;
+  }
+  const cmd = reorderCommandForNode(p, id, mode);
+  if (!cmd) {
+    return;
+  }
+  commitHistoryCommand(cmd);
+}
+
+function onCtxToggleLock(): void {
+  const id = ctxTargetNodeId.value;
+  const rid = rootPanelId();
+  if (!id || !rid || id === rid) {
+    return;
+  }
+  toggleNodeLock(id);
+  editorCanvasRef.value?.rebuildScene();
+}
+
+function onAddControlAtPoint(type: NodeType, canvasCenter: { x: number; y: number }): void {
+  const p = loadedProject.value;
+  if (!p || !projectDir.value) {
+    return;
+  }
+  const parentId = resolveInsertParentId(p, selectionStore.selectedIds.value);
+  const { width, height } = defaultSizeForType(type);
+  const pos = placementTopLeftInParent(p, parentId, canvasCenter, width, height);
+  const id = nextAutoNodeId(p, type);
+  const node = createNodeWithDefaults(type, id, id, pos.x, pos.y);
+  const list = getChildList(p, parentId);
+  commitHistoryCommand(new AddNodeCommand(p, parentId, list.length, node, `添加 ${type}`));
+  selectionStore.selectOnly(id);
+  void nextTick(() => {
+    editorCanvasRef.value?.ensureNodeVisible(id);
+  });
+}
 
 function isNodeLocked(id: string): boolean {
   return lockedNodeIds.value.has(id);
@@ -679,6 +894,7 @@ function startDragPropsSplit(e: PointerEvent): void {
               :locked-ids="lockedNodeIds"
               @dirty="onNodeTreeDirty"
               @toggle-lock="toggleNodeLock"
+              @row-contextmenu="onTreeRowContextMenu"
             />
           </div>
         </aside>
@@ -717,6 +933,7 @@ function startDragPropsSplit(e: PointerEvent): void {
               :is-node-locked="isNodeLocked"
               :commit-command="commitHistoryCommand"
               @view-change="onCanvasViewChange"
+              @context-menu="onCanvasContextMenu"
             />
           </template>
           <template v-else>
@@ -790,6 +1007,32 @@ function startDragPropsSplit(e: PointerEvent): void {
         <span class="sep">|</span>
         <span>{{ statusSaveLabel }}</span>
       </footer>
+
+      <ContextMenu
+        :open="ctxMenuOpen && !!loadedProject"
+        :x="ctxMenuX"
+        :y="ctxMenuY"
+        :variant="ctxMenuVariant"
+        :paste-disabled="ctxPasteDisabled"
+        :copy-disabled="ctxCopyDeleteLockDisabled.copy"
+        :delete-disabled="ctxCopyDeleteLockDisabled.delete"
+        :move-up-disabled="ctxReorderDisabled.up"
+        :move-down-disabled="ctxReorderDisabled.down"
+        :front-disabled="ctxReorderDisabled.front"
+        :back-disabled="ctxReorderDisabled.back"
+        :lock-disabled="ctxCopyDeleteLockDisabled.lock"
+        :lock-label="ctxLockLabel"
+        @close="closeCtxMenu"
+        @copy="onCtxCopy"
+        @paste="onCtxPaste"
+        @delete="onCtxDelete"
+        @move-up="() => onCtxReorder('up')"
+        @move-down="() => onCtxReorder('down')"
+        @front="() => onCtxReorder('front')"
+        @back="() => onCtxReorder('back')"
+        @lock="onCtxToggleLock"
+        @add-control="(t) => ctxCanvasPoint && onAddControlAtPoint(t, ctxCanvasPoint)"
+      />
 
       <div v-if="showNewDialog" class="modal-overlay" role="presentation" @click.self="cancelNewProject">
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="new-proj-title">

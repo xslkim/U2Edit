@@ -3,7 +3,7 @@ import { readFile } from "@tauri-apps/plugin-fs";
 import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import type { Command } from "../core/history";
 import type { Project } from "../core/schema";
-import { mountProjectCanvas, type CanvasViewState } from "./renderer";
+import { mountProjectCanvas, type CanvasContextMenuPayload, type CanvasViewState } from "./renderer";
 import type { SelectionStore } from "./selection";
 
 const props = withDefaults(
@@ -21,6 +21,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   viewChange: [state: CanvasViewState];
+  contextMenu: [payload: CanvasContextMenuPayload];
 }>();
 
 let api: ReturnType<typeof mountProjectCanvas> | null = null;
@@ -67,6 +68,7 @@ function mount(): void {
     selection: props.selection,
     isNodeLocked: props.isNodeLocked,
     commitCommand: props.commitCommand,
+    onContextMenu: (payload) => emit("contextMenu", payload),
   });
   void api.redraw();
 }

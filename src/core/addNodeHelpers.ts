@@ -11,7 +11,8 @@ import {
 } from "./schema";
 import { nodeTopLeft } from "../canvas/pivotMath";
 
-function collectAllIds(nodes: Node[]): string[] {
+/** 深度优先收集节点 id（含子树） */
+export function collectAllNodeIds(nodes: Node[]): string[] {
   const out: string[] = [];
   function walk(n: Node): void {
     out.push(n.id);
@@ -62,18 +63,23 @@ export function placementTopLeftInParent(
   };
 }
 
-/** requirements §2.6.2：`{type}_{自增}`，序号按类型取当前最大 +1 */
-export function nextAutoNodeId(project: Project, type: NodeType): string {
+/** requirements §2.6.2：某类型 id 当前最大数字后缀（无匹配则为 0） */
+export function maxSuffixForType(project: Project, type: NodeType): number {
   const escaped = type.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = new RegExp(`^${escaped}_(\\d+)$`);
   let max = 0;
-  for (const id of collectAllIds(project.nodes)) {
+  for (const id of collectAllNodeIds(project.nodes)) {
     const m = id.match(re);
     if (m) {
       max = Math.max(max, parseInt(m[1], 10));
     }
   }
-  return `${type}_${max + 1}`;
+  return max;
+}
+
+/** requirements §2.6.2：`{type}_{自增}`，序号按类型取当前最大 +1 */
+export function nextAutoNodeId(project: Project, type: NodeType): string {
+  return `${type}_${maxSuffixForType(project, type) + 1}`;
 }
 
 /** 解析插入父节点 id（requirements §2.6.2 父节点规则） */

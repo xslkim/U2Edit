@@ -12,6 +12,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   dirty: [];
   "toggle-lock": [nodeId: string];
+  "row-contextmenu": [payload: { nodeId: string; clientX: number; clientY: number }];
 }>();
 
 const expandedIds = ref<Set<string>>(new Set());
@@ -200,6 +201,7 @@ defineExpose({
       :style="{ paddingLeft: `${8 + depth * 14}px` }"
       @click="onRowClick(node, $event)"
       @dblclick="startRename(node, $event)"
+      @contextmenu.prevent="emit('row-contextmenu', { nodeId: node.id, clientX: $event.clientX, clientY: $event.clientY })"
     >
       <span
         v-if="hasChildren(node)"
