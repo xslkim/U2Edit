@@ -566,14 +566,46 @@ export function validate(project: Project): ValidationError[] {
   return errors;
 }
 
+/** 保存/对话框：列出校验错误 */
+export function formatValidationErrors(errors: ValidationError[]): string {
+  if (errors.length === 0) {
+    return "";
+  }
+  return errors.map((e) => `• ${e.path}: ${e.message}`).join("\n");
+}
+
+/** 打开损坏 YAML 时展示（js-yaml 的 mark.line 为 0-based） */
+export function formatYamlParseErrorForDialog(e: unknown): string {
+  if (typeof e === "object" && e !== null && "mark" in e) {
+    const mark = (e as { mark?: { line?: number } }).mark;
+    const line = mark?.line != null ? mark.line + 1 : "?";
+    const msg = e instanceof Error ? e.message : String(e);
+    return `YAML 解析失败（约第 ${line} 行）：${msg}`;
+  }
+  return e instanceof Error ? e.message : String(e);
+}
+
 /**
- * 从目录读取 `project.yaml` 并解析。
+ * 从目录读取 `project.yaml` 并解析（含 schema 迁移）。
  */
 export async function loadProject(dir: string): Promise<{ project: Project; warnings: string[] }> {
   const path = joinDirFile(dir, "project.yaml");
   const text = await readText(path);
-  const project = parseProjectYaml(text);
-  return { project, warnings: [] };
+  let raw: unknown;
+  try {
+    raw = yaml.load(text) as unknown;
+  } catch (e) {
+    throw new Error(formatYamlParseErrorForDialog(e));
+  }
+  const { migrate } = await import("./migrations");
+  const m = migrate(raw);
+  const warnings: string[] = [];
+  if (m.upgraded) {
+    warnings.push(
+      `项目 schema 已从 ${m.fromVersion} 升级到 ${m.project.meta.schemaVersion}，建议保存 project.yaml。`,
+    );
+  }
+  return { project: m.project, warnings };
 }
 
 /**

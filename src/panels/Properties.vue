@@ -956,6 +956,90 @@ watch(
   { immediate: true },
 );
 
+function syncIdErrorFromDraft(): void {
+  if (!single.value) {
+    idError.value = false;
+    return;
+  }
+  const node = selectedNodes.value[0];
+  if (!node) {
+    idError.value = false;
+    return;
+  }
+  const raw = idDraft.value.trim();
+  if (raw === node.id) {
+    idError.value = false;
+    return;
+  }
+  if (!isValidNodeIdFormat(raw)) {
+    idError.value = true;
+    return;
+  }
+  idError.value = !isNodeIdAvailable(props.project, raw, new Set([node.id]));
+}
+
+const idFieldTitle = computed((): string => {
+  if (!idError.value) {
+    return "字母或下划线开头，仅字母数字下划线";
+  }
+  const raw = idDraft.value.trim();
+  if (!isValidNodeIdFormat(raw)) {
+    return "id 须为字母或下划线开头，仅含字母、数字、下划线（不能以数字开头）";
+  }
+  return "与已有节点 id 冲突";
+});
+
+function assetRefMissingOnDisk(assetId: string | null | undefined): boolean {
+  if (assetId === null || assetId === undefined || assetId === "") {
+    return false;
+  }
+  return !props.project.assets.some((a) => a.id === assetId);
+}
+
+function imageAssetButtonInvalid(): boolean {
+  if (sameType.value !== "image") {
+    return false;
+  }
+  const id = commonStringLoose("assetId");
+  if (id === null) {
+    return false;
+  }
+  return assetRefMissingOnDisk(id);
+}
+
+function panelBgAssetButtonInvalid(): boolean {
+  if (sameType.value !== "panel") {
+    return false;
+  }
+  const id = commonPanelBgAssetId();
+  if (id === null) {
+    return false;
+  }
+  return assetRefMissingOnDisk(id);
+}
+
+function buttonBgAssetButtonInvalid(): boolean {
+  if (sameType.value !== "button") {
+    return false;
+  }
+  const id = commonButtonBgAssetId();
+  if (id === null) {
+    return false;
+  }
+  return assetRefMissingOnDisk(id);
+}
+
+function inputBgAssetButtonInvalid(): boolean {
+  if (sameType.value !== "inputField") {
+    return false;
+  }
+  const id = commonInputBgAssetId();
+  if (id === null) {
+    return false;
+  }
+  return assetRefMissingOnDisk(id);
+}
+
 function pushPatches(
   patches: Array<{ id: string; patch: Record<string, unknown> }>,
   label: string,
@@ -1010,7 +1094,7 @@ function onIdBlur(): void {
   const raw = idDraft.value.trim();
   const node = selectedNodes.value[0];
   if (!node || raw === node.id) {
-    idError.value = !isValidNodeIdFormat(raw);
+    syncIdErrorFromDraft();
     return;
   }
   if (!isValidNodeIdFormat(raw)) {
@@ -1240,7 +1324,8 @@ const pickerCurrentAssetId = computed((): string | null => {
             type="text"
             spellcheck="false"
             autocomplete="off"
-            :title="idError ? '非法 id 或与现有 id 冲突' : ''"
+            :title="idFieldTitle"
+            @input="syncIdErrorFromDraft"
             @blur="onIdBlur"
           />
         </label>
@@ -1433,6 +1518,12 @@ const pickerCurrentAssetId = computed((): string | null => {
           <button
             type="button"
             class="properties__asset-btn"
+            :class="{ 'properties__asset-btn--err': buttonBgAssetButtonInvalid() }"
+            :title="
+              buttonBgAssetButtonInvalid()
+                ? '引用的 assetId 在项目资源中不存在'
+                : '选择背景资源'
+            "
             @click="(e) => openButtonBgAsset(e.currentTarget as HTMLElement)"
           >
             {{ commonButtonBgAssetId() ?? "无" }}
@@ -1461,6 +1552,12 @@ const pickerCurrentAssetId = computed((): string | null => {
           <button
             type="button"
             class="properties__asset-btn"
+            :class="{ 'properties__asset-btn--err': imageAssetButtonInvalid() }"
+            :title="
+              imageAssetButtonInvalid()
+                ? '引用的 assetId 在项目资源中不存在'
+                : '选择图片资源'
+            "
             @click="(e) => openImageAsset(e.currentTarget as HTMLElement)"
           >
             {{ commonStringLoose('assetId') ?? "—" }}
@@ -1488,6 +1585,12 @@ const pickerCurrentAssetId = computed((): string | null => {
           <button
             type="button"
             class="properties__asset-btn"
+            :class="{ 'properties__asset-btn--err': panelBgAssetButtonInvalid() }"
+            :title="
+              panelBgAssetButtonInvalid()
+                ? '引用的 assetId 在项目资源中不存在'
+                : '选择背景资源'
+            "
             @click="(e) => openPanelBgAsset(e.currentTarget as HTMLElement)"
           >
             {{ commonPanelBgAssetId() ?? "—" }}
@@ -1550,6 +1653,12 @@ const pickerCurrentAssetId = computed((): string | null => {
           <button
             type="button"
             class="properties__asset-btn"
+            :class="{ 'properties__asset-btn--err': inputBgAssetButtonInvalid() }"
+            :title="
+              inputBgAssetButtonInvalid()
+                ? '引用的 assetId 在项目资源中不存在'
+                : '选择背景资源'
+            "
             @click="(e) => openInputBgAsset(e.currentTarget as HTMLElement)"
           >
             {{ commonInputBgAssetId() ?? "—" }}
@@ -1715,6 +1824,12 @@ const pickerCurrentAssetId = computed((): string | null => {
 .properties__swatch:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.properties__asset-btn--err {
+  border-color: #dc2626 !important;
+  background: #fef2f2;
+  color: #991b1b;
 }
 
 .properties__asset-btn {

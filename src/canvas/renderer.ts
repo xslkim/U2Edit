@@ -220,8 +220,12 @@ function drawImageNode(
   const tl = nodeTopLeft(n.pivot, n.x, n.y, n.width, n.height);
   const g = new Konva.Group({ x: tl.x, y: tl.y, opacity: n.opacity });
   const tint = n.tint ?? "#FFFFFF";
-  if (!n.assetId || !absPath) {
+  if (!n.assetId) {
     g.add(missingPlaceholder(n.width, n.height, "无 asset"));
+    return g;
+  }
+  if (!absPath) {
+    g.add(missingPlaceholder(n.width, n.height, "Missing"));
     return g;
   }
   const img = imgMap.get(absPath);

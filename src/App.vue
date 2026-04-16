@@ -7,9 +7,11 @@ import * as fileService from "./core/fileService";
 import * as fileWatcher from "./core/fileWatcher";
 import {
   createBlankProject,
+  formatValidationErrors,
   joinProjectPath,
   loadProject,
   saveProject,
+  validate,
 } from "./core/project";
 import {
   createNodeWithDefaults,
@@ -531,6 +533,11 @@ async function performSave(): Promise<void> {
     await message("没有可保存的项目或目录。", { title: "LWB UI Editor", kind: "warning" });
     throw new Error("nothing to save");
   }
+  const errs = validate(p);
+  if (errs.length > 0) {
+    await message(formatValidationErrors(errs), { title: "无法保存：请修正以下问题", kind: "error" });
+    throw new Error("validation");
+  }
   suppressProjectYamlWatchUntil = Date.now() + 1600;
   await saveProject(dir, p);
   setDirty(false);
@@ -668,7 +675,7 @@ async function runProjectYamlConflictDialog(): Promise<void> {
 
 async function reloadProjectFromDisk(dir: string): Promise<void> {
   try {
-    const { project } = await loadProject(dir);
+    const { project, warnings } = await loadProject(dir);
     loadedProject.value = project;
     selectionStore.clear();
     clearNodeLocks();
@@ -676,6 +683,9 @@ async function reloadProjectFromDisk(dir: string): Promise<void> {
     setDirty(false);
     await nextTick();
     editorCanvasRef.value?.rebuildScene();
+    for (const w of warnings) {
+      void message(w, { title: "项目已升级", kind: "info" });
+    }
   } catch (e) {
     await message(String(e instanceof Error ? e.message : e), { title: "重新加载失败", kind: "error" });
   }
@@ -684,8 +694,7 @@ async function reloadProjectFromDisk(dir: string): Promise<void> {
 /** 关闭窗口时选「保存」：有项目则写盘；仅 POC dirty 则只清标记 */
 async function saveForCloseGuard(): Promise<void> {
   if (loadedProject.value && projectDir.value) {
-    await saveProject(projectDir.value, loadedProject.value);
-    setDirty(false);
+    await performSave();
     return;
   }
   useDirtyFlag.value = false;
@@ -712,13 +721,16 @@ async function onOpenProject(): Promise<void> {
     return;
   }
   try {
-    const { project } = await loadProject(dir);
+    const { project, warnings } = await loadProject(dir);
     loadedProject.value = project;
     projectDir.value = dir;
     selectionStore.clear();
     clearNodeLocks();
     setDirty(false);
     log(`已打开: ${dir}`);
+    for (const w of warnings) {
+      void message(w, { title: "项目已升级", kind: "info" });
+    }
   } catch (e) {
     await message(String(e instanceof Error ? e.message : e), { title: "打开失败", kind: "error" });
   }

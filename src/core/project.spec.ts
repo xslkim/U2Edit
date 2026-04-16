@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import {
   createBlankProject,
+  formatValidationErrors,
+  formatYamlParseErrorForDialog,
   joinProjectPath,
   parseProjectYaml,
   stringifyProject,
@@ -159,6 +161,28 @@ describe("T1.2 project YAML", () => {
       nodes: [createDefaultText({ id: "root_panel", name: "T", x: 0, y: 0 })],
     };
     expect(validate(badRoot).some((e) => e.code === "ROOT_TYPE")).toBe(true);
+  });
+
+  it("formatValidationErrors 多行列表", () => {
+    const errs = validate({
+      meta: minimalMeta(),
+      assets: [],
+      export: minimalExport,
+      nodes: [],
+    });
+    expect(errs.length).toBeGreaterThan(0);
+    const t = formatValidationErrors(errs);
+    expect(t).toContain("•");
+    expect(t).toContain("nodes");
+  });
+
+  it("formatYamlParseErrorForDialog 含行号", () => {
+    const msg = formatYamlParseErrorForDialog({
+      mark: { line: 2 },
+      message: "unexpected token",
+    });
+    expect(msg).toContain("3");
+    expect(msg).toContain("YAML 解析失败");
   });
 });
 
