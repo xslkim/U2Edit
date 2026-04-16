@@ -138,7 +138,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | T1.11 | Properties 面板（基础属性） | T1.9, T1.4 | `dev_done` | 0 | f1ae784 | [qa-reports/T1.11.md](../qa-reports/T1.11.md) | `Properties.vue`；Ctrl+Z/Y；打开/新建清空历史 |
 | T1.12 | 拖拽移动节点 | T1.9, T1.4 | `dev_done` | 0 | 945338e | [qa-reports/T1.12.md](../qa-reports/T1.12.md) | `renderer` 画布拖拽 + 方向键；单击已选不拆多选 |
 | T1.13 | 画布鼠标指针状态 | T1.12 | `dev_done` | 0 | 4b3bc3f | [qa-reports/T1.13.md](../qa-reports/T1.13.md) | 悬停/手柄/拖拽/空格；`selectionOverlay` 命中 |
-| T1.14 | 颜色选择器与 assetId 选择器 | T1.11 | `dev_done` | 0 | de94dc7 | [qa-reports/T1.14.md](../qa-reports/T1.14.md) | `ColorPicker` / `AssetPicker`；`assetPath` |
+| T1.14 | 颜色选择器与 assetId 选择器 | T1.11 | `dev_done` | 0 | 2c5556b | [qa-reports/T1.14.md](../qa-reports/T1.14.md) | `ColorPicker` / `AssetPicker`；`assetPath` |
 
 ### M2 — 完整控件 & 资源 & 编辑操作
 
