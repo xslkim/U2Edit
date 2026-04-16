@@ -154,7 +154,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | T2.8 | 拖拽资源到画布创建 Image | T2.7 | `dev_done` | 0 | 603a536 | [qa-reports/T2.8.md](../qa-reports/T2.8.md) | `dropParent` 世界坐标命中；`ASSET_DRAG_MIME` |
 | T2.9 | Text 双击内联编辑 | T1.11, T0.7 | `dev_done` | 0 | c7f917f | [qa-reports/T2.9.md](../qa-reports/T2.9.md) | `textInlineHit`；DOM textarea；`dblclick dbltap` |
 | T2.10 | 节点树搜索与拖拽 | T1.10 | `dev_done` | 0 | 430ea69 | [qa-reports/T2.10.md](../qa-reports/T2.10.md) | `treeMove`；`planTreeDrop`；HTML5 拖拽 |
-| T2.11 | 文件监听冲突处理 | T0.3, T1.6 | `pending` | 0 | | | |
+| T2.11 | 文件监听冲突处理 | T0.3, T1.6 | `dev_done` | 0 | 3ec859c | [qa-reports/T2.11.md](../qa-reports/T2.11.md) | `watch`；debounce；延后；`confirm`/`message` |
 | T2.12 | 错误/异常处理与校验反馈 | T1.2, T1.11 | `pending` | 0 | | | |
 
 ### M3 — Unity 导出
