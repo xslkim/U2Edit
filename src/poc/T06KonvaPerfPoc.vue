@@ -131,8 +131,15 @@ onUnmounted(() => {
   <div class="t06-root">
     <div ref="hostRef" class="t06-stage-host" />
     <div class="t06-hud">
-      <div class="t06-fps">FPS {{ fps }}</div>
-      <div v-if="initialRenderMs !== null" class="t06-meta">首帧 300 节点耗时 {{ initialRenderMs }} ms（目标 &lt; 500ms）</div>
+      <div class="t06-fps" data-testid="t06-fps">FPS {{ fps }}</div>
+      <div
+        v-if="initialRenderMs !== null"
+        class="t06-meta"
+        data-testid="t06-initial-ms"
+        :data-ms="initialRenderMs"
+      >
+        首帧 300 节点耗时 {{ initialRenderMs }} ms（目标 &lt; 500ms）
+      </div>
     </div>
   </div>
 </template>

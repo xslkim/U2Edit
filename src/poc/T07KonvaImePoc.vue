@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Konva from "konva";
 import { nextTick, onMounted, onUnmounted, ref, shallowRef } from "vue";
+import { shouldIgnoreCanvasShortcut } from "./imeShortcutGuards";
 
 const hostRef = ref<HTMLDivElement | null>(null);
 const inlineEditorRef = ref<HTMLTextAreaElement | null>(null);
@@ -27,21 +28,11 @@ function setComposingEnd(): void {
   composing = false;
 }
 
-function isEditableTarget(t: EventTarget | null): boolean {
-  if (!(t instanceof HTMLElement)) {
-    return false;
-  }
-  return Boolean(t.closest("input, textarea"));
-}
-
 /**
  * T0.7：全局 Delete / Ctrl+Z —— IME 组合输入期间不触发「画布节点」逻辑。
  */
 function onGlobalKeydown(e: KeyboardEvent): void {
-  if (composing) {
-    return;
-  }
-  if (isEditableTarget(e.target)) {
+  if (shouldIgnoreCanvasShortcut(e, composing)) {
     return;
   }
 
@@ -104,6 +95,16 @@ function commitEditor(): void {
   editing.value = false;
   textNode.getLayer()?.batchDraw();
 }
+
+function getKonvaTextForTest(): string {
+  return textNodeRef.value?.text() ?? "";
+}
+
+defineExpose({
+  /** 仅 Vitest：避免 happy-dom 双击命中偏差 */
+  openEditorForTest: openEditor,
+  getKonvaTextForTest,
+});
 
 function mountStage(): void {
   const el = hostRef.value;
@@ -214,10 +215,11 @@ onUnmounted(() => {
     <section class="t07-block t07-metrics">
       <p>
         <strong>画布删除计数</strong>（仅当焦点不在输入框且非 IME 组合时按 Delete/Backspace）：
-        <code>{{ deleteCount }}</code>
+        <code data-testid="t07-delete-count">{{ deleteCount }}</code>
       </p>
       <p>
-        <strong>撤销计数</strong>（同上条件下 Ctrl+Z）： <code>{{ undoCount }}</code>
+        <strong>撤销计数</strong>（同上条件下 Ctrl+Z）：
+        <code data-testid="t07-undo-count">{{ undoCount }}</code>
       </p>
       <p class="t07-note">
         用例 3：本 POC <strong>未将空格绑定画布平移</strong>，选字空格不会与「空格+左键平移」冲突。

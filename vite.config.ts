@@ -10,6 +10,7 @@ export default defineConfig(async () => ({
 
   test: {
     environment: "happy-dom",
+    setupFiles: ["./vitest.setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
   },
 
