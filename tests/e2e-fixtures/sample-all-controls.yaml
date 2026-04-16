@@ -1,0 +1,219 @@
+# T3.3 端到端回归：七种控件 + 嵌套 + 多图片引用
+# 用法：作为项目 project.yaml 打开，或复制到新建项目目录。
+meta:
+  name: "AllControls_E2E"
+  schemaVersion: 1
+  canvasWidth: 1920
+  canvasHeight: 1080
+
+assets:
+  - id: "a_img_hero"
+    path: "assets/hero.png"
+    width: 256
+    height: 256
+  - id: "a_img_corner"
+    path: "assets/corner.png"
+    width: 64
+    height: 64
+  - id: "a_btn_bg"
+    path: "assets/btn_bg.png"
+    width: 220
+    height: 56
+  - id: "a_panel_bg"
+    path: "assets/panel_bg.png"
+    width: 800
+    height: 600
+  - id: "a_slider_track"
+    path: "assets/slider_track.png"
+    width: 520
+    height: 12
+  - id: "a_slider_fill"
+    path: "assets/slider_fill.png"
+    width: 520
+    height: 12
+  - id: "a_slider_thumb"
+    path: "assets/slider_thumb.png"
+    width: 24
+    height: 48
+  - id: "a_toggle_bg"
+    path: "assets/toggle_bg.png"
+    width: 36
+    height: 36
+  - id: "a_toggle_check"
+    path: "assets/toggle_check.png"
+    width: 28
+    height: 28
+  - id: "a_input_bg"
+    path: "assets/input_bg.png"
+    width: 520
+    height: 48
+
+nodes:
+  - id: "root_panel"
+    name: "Root"
+    type: panel
+    x: 0
+    y: 0
+    width: 1920
+    height: 1080
+    pivot: topLeft
+    visible: true
+    opacity: 1.0
+    background: null
+    children:
+      - id: "node_image_hero"
+        name: "ImageHero"
+        type: image
+        x: 80
+        y: 80
+        width: 256
+        height: 256
+        pivot: topLeft
+        visible: true
+        opacity: 1.0
+        assetId: "a_img_hero"
+        tint: "#FFFFFF"
+
+      - id: "node_image_corner"
+        name: "ImageCorner"
+        type: image
+        x: 1760
+        y: 40
+        width: 64
+        height: 64
+        pivot: topRight
+        visible: true
+        opacity: 1.0
+        assetId: "a_img_corner"
+        tint: "#FFFFFF"
+
+      - id: "node_text_title"
+        name: "Title"
+        type: text
+        x: 960
+        y: 72
+        width: 800
+        height: 72
+        pivot: topCenter
+        visible: true
+        opacity: 1.0
+        content: "七种控件 · 嵌套 · 多图"
+        fontSize: 40
+        color: "#E4E4E7"
+        textAlign: center
+
+      - id: "node_button"
+        name: "PrimaryButton"
+        type: button
+        x: 960
+        y: 200
+        width: 220
+        height: 56
+        pivot: center
+        visible: true
+        opacity: 1.0
+        background:
+          assetId: "a_btn_bg"
+          tint: "#FFFFFF"
+        label:
+          content: "按钮"
+          fontSize: 22
+          color: "#18181B"
+          textAlign: center
+        children: []
+
+      - id: "node_nested_panel"
+        name: "NestedPanel"
+        type: panel
+        x: 420
+        y: 320
+        width: 1080
+        height: 640
+        pivot: topLeft
+        visible: true
+        opacity: 1.0
+        background:
+          assetId: "a_panel_bg"
+          tint: "#FFFFFF"
+        children:
+          - id: "node_slider"
+            name: "VolumeSlider"
+            type: slider
+            x: 80
+            y: 80
+            width: 520
+            height: 48
+            pivot: topLeft
+            visible: true
+            opacity: 1.0
+            direction: horizontal
+            defaultValue: 0.65
+            trackImage:
+              assetId: "a_slider_track"
+              tint: "#FFFFFF"
+            fillImage:
+              assetId: "a_slider_fill"
+              tint: "#FFFFFF"
+            thumbImage:
+              assetId: "a_slider_thumb"
+              tint: "#FFFFFF"
+
+          - id: "node_toggle"
+            name: "MuteToggle"
+            type: toggle
+            x: 80
+            y: 200
+            width: 280
+            height: 48
+            pivot: topLeft
+            visible: true
+            opacity: 1.0
+            defaultOn: true
+            background:
+              assetId: "a_toggle_bg"
+              tint: "#FFFFFF"
+            checkmark:
+              assetId: "a_toggle_check"
+              tint: "#FFFFFF"
+            label:
+              content: "静音"
+              fontSize: 20
+              color: "#27272A"
+              textAlign: left
+
+          - id: "node_input"
+            name: "NameInput"
+            type: inputField
+            x: 80
+            y: 300
+            width: 520
+            height: 48
+            pivot: topLeft
+            visible: true
+            opacity: 1.0
+            background:
+              assetId: "a_input_bg"
+              tint: "#FFFFFF"
+            placeholder:
+              content: "请输入显示名称…"
+              fontSize: 18
+              color: "#71717A"
+              textAlign: left
+            text:
+              content: "中文输入"
+              fontSize: 18
+              color: "#18181B"
+              textAlign: left
+
+export:
+  unity:
+    assetRootPath: "Assets/LWB/AllControls"
+    defaultFont: "Assets/TextMesh Pro/Resources/Fonts & Materials/LiberationSans SDF.asset"
+    fontSizeScale: 1.0
+    renderMode: "ScreenSpaceOverlay"
+    referenceResolution: [1920, 1080]
+    screenMatchMode: 0.5
+  unreal:
+    assetRootPath: "/Game/LWB/AllControls"
+    defaultFont: "/Game/UI/Fonts/Default"
+    fontSizeScale: 1.0

@@ -85,10 +85,10 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | M0 — 工程搭建与 POC | `completed` | 7 | 7 | 100% |
 | M1 — 基础编辑器 | `completed` | 14 | 14 | 100% |
 | M2 — 完整控件 & 资源 & 编辑操作 | `in_progress` | 12 | 4 | 33% |
-| M3 — Unity 导出 | `in_progress` | 3 | 2 | 67% |
+| M3 — Unity 导出 | `completed` | 3 | 3 | 100% |
 | M4 — Unreal 导出 | `pending` | 2 | 0 | 0% |
 | M5 — 打磨 | `pending` | 3 | 0 | 0% |
-| **总计** | | **41** | **25** | 61% |
+| **总计** | | **41** | **26** | 63% |
 
 ---
 
@@ -163,7 +163,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 |----|---------|------|------|-------|--------|------|------|
 | T3.1 | Unity C# 代码生成器 | T1.1, T1.2, T2.7, T0.4 | `dev_done` | 0 | 608cff4 | [qa-reports/T3.1.md](../qa-reports/T3.1.md) | `generateUnityScript`；**QA 测试暂缓** |
 | T3.2 | 导出设置对话框 | T3.1 | `dev_done` | 0 | 6fd86cc | [qa-reports/T3.2.md](../qa-reports/T3.2.md) | Toolbar→Unity；`UnityExportDialog`；**QA 测试暂缓** |
-| T3.3 | Unity 导出端到端回归 | T3.2 | `pending` | 0 | | | **QA 测试暂缓** |
+| T3.3 | Unity 导出端到端回归 | T3.2 | `dev_done` | 0 | (提交后填入) | [qa-reports/T3.3.md](../qa-reports/T3.3.md) | `tests/e2e-fixtures`；`docs/unity-export-verify.md`；**QA 测试暂缓** |
 
 ### M4 — Unreal 导出
 
