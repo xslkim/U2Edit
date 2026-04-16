@@ -83,12 +83,12 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | 里程碑 | 状态 | 任务总数 | 完成数 | 进度 |
 |--------|------|---------|--------|------|
 | M0 — 工程搭建与 POC | `completed` | 7 | 7 | 100% |
-| M1 — 基础编辑器 | `pending` | 14 | 0 | 0% |
+| M1 — 基础编辑器 | `in_progress` | 14 | 1 | 7% |
 | M2 — 完整控件 & 资源 & 编辑操作 | `pending` | 12 | 0 | 0% |
 | M3 — Unity 导出 | `pending` | 3 | 0 | 0% |
 | M4 — Unreal 导出 | `pending` | 2 | 0 | 0% |
 | M5 — 打磨 | `pending` | 3 | 0 | 0% |
-| **总计** | | **41** | **7** | 17% |
+| **总计** | | **41** | **8** | 20% |
 
 ---
 
@@ -125,7 +125,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 
 | ID | 任务标题 | 依赖 | 状态 | retry | commit | 报告 | 备注 |
 |----|---------|------|------|-------|--------|------|------|
-| T1.1 | YAML Schema 类型定义 | T0.1 | `pending` | 0 | | | |
+| T1.1 | YAML Schema 类型定义 | T0.1 | `passed` | 0 | PLACEHOLDER | [qa-reports/T1.1.md](../qa-reports/T1.1.md) | |
 | T1.2 | YAML 读写与校验 | T1.1, T0.2 | `pending` | 0 | | | |
 | T1.3 | Schema 版本升级框架 | T1.2 | `pending` | 0 | | | |
 | T1.4 | 命令模式撤销重做框架 | T1.1 | `pending` | 0 | | | |
@@ -294,6 +294,7 @@ QA 验证报告存放于 `qa-reports/` 目录，命名规则：`T{id}.md`
 | T0.3 | [qa-reports/T0.3.md](../qa-reports/T0.3.md) | Pass（含人工补测项） | 2026-04-15 |
 | T0.6 | [qa-reports/T0.6.md](../qa-reports/T0.6.md) | Pass（含人工补测项） | 2026-04-16 |
 | T0.7 | [qa-reports/T0.7.md](../qa-reports/T0.7.md) | Pass（含人工补测项） | 2026-04-16 |
+| T1.1 | [qa-reports/T1.1.md](../qa-reports/T1.1.md) | Pass | 2026-04-16 |
 
 > QA Agent 每验证完一个任务，在此表格追加一行。
 
