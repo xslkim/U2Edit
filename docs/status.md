@@ -130,7 +130,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | T1.3 | Schema 版本升级框架 | T1.2 | `passed` | 0 | afcd967 | [qa-reports/T1.3.md](../qa-reports/T1.3.md) | |
 | T1.4 | 命令模式撤销重做框架 | T1.1 | `passed` | 0 | 90c88e3 | [qa-reports/T1.4.md](../qa-reports/T1.4.md) | |
 | T1.5 | 主窗口四面板布局 | T0.1 | `passed` | 0 | 6bc6aee | [qa-reports/T1.5.md](../qa-reports/T1.5.md) | |
-| T1.6 | 新建/打开/保存项目 | T1.2, T1.5 | `passed` | 0 | （提交后回填） | [qa-reports/T1.6.md](../qa-reports/T1.6.md) | |
+| T1.6 | 新建/打开/保存项目 | T1.2, T1.5 | `passed` | 0 | 3aa6c17 | [qa-reports/T1.6.md](../qa-reports/T1.6.md) | |
 | T1.7 | 画布基础渲染（Konva 集成） | T1.5, T1.6 | `pending` | 0 | | | |
 | T1.8 | 画布缩放与平移 | T1.7 | `pending` | 0 | | | 含 StatusBar 四项信息 |
 | T1.9 | 单选与多选 | T1.7 | `pending` | 0 | | | |
