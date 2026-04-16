@@ -36,7 +36,11 @@ import {
   topHitId,
   type CanvasAabb,
 } from "./nodeHit";
-import { buildSelectionOverlayLayer } from "./selectionOverlay";
+import {
+  buildSelectionOverlayLayer,
+  cursorCssForHandleIndex,
+  hitTestResizeHandle,
+} from "./selectionOverlay";
 
 /** 从磁盘绝对路径加载位图（由宿主注入；失败返回 null） */
 export type ImageLoader = (absolutePath: string) => Promise<HTMLImageElement | null>;
@@ -650,6 +654,9 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
   let nodeDragIds: string[] = [];
   let nodeDragSnapshots: Map<string, Node> = new Map();
 
+  /** T1.13：悬停命中（平移/拖拽中由 updateContainerCursor 覆盖） */
+  let hoverCursor = "";
+
   const resetNodeDrag = (): void => {
     nodeDragPending = false;
     nodeDragActive = false;
@@ -700,16 +707,10 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     marqueeRectKonva = null;
   };
 
-  const updateSelectionOverlay = (): void => {
-    selectionOverlayGroup?.destroy();
-    selectionOverlayGroup = null;
-    if (!world) {
-      return;
-    }
+  const collectSelectionBoxes = (): CanvasAabb[] => {
     const ids = selection.selectedIds.value;
-    if (ids.size === 0) {
-      mainLayer?.batchDraw();
-      return;
+    if (ids.size === 0 || !project.nodes[0]) {
+      return [];
     }
     const paintOrder = collectVisiblePaintOrder(project.nodes[0]);
     const byId = new Map(paintOrder.map((n) => [n.id, n]));
@@ -720,13 +721,60 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
         boxes.push(getCanvasAabb(n));
       }
     }
+    return boxes;
+  };
+
+  const updateHoverCursorFromCanvas = (canvasX: number, canvasY: number): void => {
+    const boxes = collectSelectionBoxes();
+    const rh = hitTestResizeHandle(canvasX, canvasY, boxes);
+    if (rh) {
+      hoverCursor = cursorCssForHandleIndex(rh.handle);
+      return;
+    }
+    const root = project.nodes[0];
+    if (!root) {
+      hoverCursor = "";
+      return;
+    }
+    const paintOrder = collectVisiblePaintOrder(root);
+    const hitsRaw = nodesHitByPoint(paintOrder, canvasX, canvasY);
+    const hits = filterUnlockedNodes(hitsRaw, isNodeLocked);
+    if (hits.length > 0) {
+      hoverCursor = "pointer";
+      return;
+    }
+    hoverCursor = "";
+  };
+
+  const refreshHoverCursorFromStage = (): void => {
+    if (!stage || panDragging || nodeDragActive || nodeDragPending) {
+      updateContainerCursor();
+      return;
+    }
+    const p = stage.getPointerPosition();
+    if (p) {
+      const c = stageToCanvas(p.x, p.y);
+      updateHoverCursorFromCanvas(c.x, c.y);
+    }
+    updateContainerCursor();
+  };
+
+  const updateSelectionOverlay = (): void => {
+    selectionOverlayGroup?.destroy();
+    selectionOverlayGroup = null;
+    if (!world) {
+      return;
+    }
+    const boxes = collectSelectionBoxes();
     if (boxes.length === 0) {
       mainLayer?.batchDraw();
+      refreshHoverCursorFromStage();
       return;
     }
     selectionOverlayGroup = buildSelectionOverlayLayer(boxes);
     world.add(selectionOverlayGroup);
     mainLayer?.batchDraw();
+    refreshHoverCursorFromStage();
   };
 
   const notifyView = (): void => {
@@ -748,11 +796,15 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
       container.style.cursor = "move";
       return;
     }
+    if (nodeDragPending && !nodeDragActive) {
+      container.style.cursor = "pointer";
+      return;
+    }
     if (spaceHeld) {
       container.style.cursor = "grab";
       return;
     }
-    container.style.cursor = "";
+    container.style.cursor = hoverCursor || "";
   };
 
   const applyViewportTransform = (): void => {
@@ -880,11 +932,13 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     if ((nodeDragPending || nodeDragActive) && stage && nodeDragStartCanvas) {
       const p = stage.getPointerPosition();
       if (!p) {
+        updateContainerCursor();
         return;
       }
       if (nodeDragPending && !nodeDragActive && nodeDragPointerStartScr) {
         const dist = Math.hypot(e.clientX - nodeDragPointerStartScr.x, e.clientY - nodeDragPointerStartScr.y);
         if (dist < MARQUEE_THRESHOLD_PX) {
+          updateContainerCursor();
           return;
         }
         nodeDragActive = true;
@@ -914,6 +968,15 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
       }
       return;
     }
+
+    if (stage && !nodeDragActive && !nodeDragPending) {
+      const ph = stage.getPointerPosition();
+      if (ph) {
+        const c = stageToCanvas(ph.x, ph.y);
+        updateHoverCursorFromCanvas(c.x, c.y);
+      }
+    }
+    updateContainerCursor();
 
     if (!stage || !screenMarqueeStart || !canvasMarqueeStart) {
       return;
@@ -956,7 +1019,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
   const onWindowMouseUp = (e: MouseEvent): void => {
     if (panDragging) {
       panDragging = false;
-      updateContainerCursor();
+      refreshHoverCursorFromStage();
       return;
     }
 
@@ -990,7 +1053,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
         }
       }
       resetNodeDrag();
-      updateContainerCursor();
+      refreshHoverCursorFromStage();
       emptyClickPending = false;
       marqueeActive = false;
       screenMarqueeStart = null;
@@ -1143,12 +1206,19 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
   const onWindowKeyUp = (e: KeyboardEvent): void => {
     if (e.code === "Space") {
       spaceHeld = false;
-      updateContainerCursor();
+      refreshHoverCursorFromStage();
     }
+  };
+
+  const onContainerPointerLeave = (): void => {
+    hoverCursor = "";
+    updateContainerCursor();
   };
 
   const destroy = (): void => {
     resetNodeDrag();
+    container.removeEventListener("pointerleave", onContainerPointerLeave);
+    hoverCursor = "";
     ro?.disconnect();
     ro = null;
     window.removeEventListener("mousemove", onWindowMouseMove);
@@ -1201,6 +1271,8 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
 
   const redraw = async (): Promise<void> => {
     resetNodeDrag();
+    container.removeEventListener("pointerleave", onContainerPointerLeave);
+    hoverCursor = "";
     ro?.disconnect();
     ro = null;
     window.removeEventListener("mousemove", onWindowMouseMove);
@@ -1262,6 +1334,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     window.addEventListener("mouseup", onWindowMouseUp);
     window.addEventListener("keydown", onWindowKeyDown);
     window.addEventListener("keyup", onWindowKeyUp);
+    container.addEventListener("pointerleave", onContainerPointerLeave);
 
     ro = new ResizeObserver(() => {
       syncStageSize();

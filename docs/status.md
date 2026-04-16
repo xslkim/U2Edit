@@ -83,12 +83,12 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | 里程碑 | 状态 | 任务总数 | 完成数 | 进度 |
 |--------|------|---------|--------|------|
 | M0 — 工程搭建与 POC | `completed` | 7 | 7 | 100% |
-| M1 — 基础编辑器 | `in_progress` | 14 | 12 | 86% |
+| M1 — 基础编辑器 | `in_progress` | 14 | 13 | 93% |
 | M2 — 完整控件 & 资源 & 编辑操作 | `pending` | 12 | 0 | 0% |
 | M3 — Unity 导出 | `pending` | 3 | 0 | 0% |
 | M4 — Unreal 导出 | `pending` | 2 | 0 | 0% |
 | M5 — 打磨 | `pending` | 3 | 0 | 0% |
-| **总计** | | **41** | **19** | 46% |
+| **总计** | | **41** | **20** | 49% |
 
 ---
 
@@ -137,7 +137,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | T1.10 | 节点树面板（基础） | T1.9 | `dev_done` | 0 | 629f9b9 | [qa-reports/T1.10.md](../qa-reports/T1.10.md) | `NodeTree.vue`；锁定仅会话 |
 | T1.11 | Properties 面板（基础属性） | T1.9, T1.4 | `dev_done` | 0 | f1ae784 | [qa-reports/T1.11.md](../qa-reports/T1.11.md) | `Properties.vue`；Ctrl+Z/Y；打开/新建清空历史 |
 | T1.12 | 拖拽移动节点 | T1.9, T1.4 | `dev_done` | 0 | 945338e | [qa-reports/T1.12.md](../qa-reports/T1.12.md) | `renderer` 画布拖拽 + 方向键；单击已选不拆多选 |
-| T1.13 | 画布鼠标指针状态 | T1.12 | `pending` | 0 | | | |
+| T1.13 | 画布鼠标指针状态 | T1.12 | `dev_done` | 0 | PLACEHOLDER | [qa-reports/T1.13.md](../qa-reports/T1.13.md) | 悬停/手柄/拖拽/空格；`selectionOverlay` 命中 |
 | T1.14 | 颜色选择器与 assetId 选择器 | T1.11 | `pending` | 0 | | | |
 
 ### M2 — 完整控件 & 资源 & 编辑操作
