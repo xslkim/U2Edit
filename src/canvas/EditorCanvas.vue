@@ -13,6 +13,8 @@ const props = withDefaults(
     selection: SelectionStore;
     isNodeLocked?: (id: string) => boolean;
     commitCommand?: (cmd: Command) => void;
+    /** T2.8：自 Assets 拖入 */
+    onDropAsset?: (payload: { assetId: string; canvasX: number; canvasY: number }) => void;
   }>(),
   {
     isNodeLocked: () => false,
@@ -69,6 +71,7 @@ function mount(): void {
     isNodeLocked: props.isNodeLocked,
     commitCommand: props.commitCommand,
     onContextMenu: (payload) => emit("contextMenu", payload),
+    onDropAsset: props.onDropAsset,
   });
   void api.redraw();
 }

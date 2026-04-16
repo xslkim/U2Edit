@@ -25,6 +25,7 @@ import {
   zoomAtScreenPoint,
 } from "./viewTransform";
 import type { SelectionStore } from "./selection";
+import { ASSET_DRAG_MIME } from "./assetDrag";
 import {
   altPickId,
   collectVisiblePaintOrder,
@@ -87,6 +88,8 @@ export interface MountProjectCanvasOptions {
   commitCommand?: (cmd: Command) => void;
   /** 画布右键菜单（已 preventDefault） */
   onContextMenu?: (payload: CanvasContextMenuPayload) => void;
+  /** T2.8：自 Assets 拖入图片资源 */
+  onDropAsset?: (payload: { assetId: string; canvasX: number; canvasY: number }) => void;
 }
 
 export interface MountedCanvas {
@@ -631,8 +634,17 @@ function isEditableDomTarget(t: EventTarget | null): boolean {
 const MARQUEE_THRESHOLD_PX = 4;
 
 export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanvas {
-  const { container, project, projectDir, loadImage, onViewChange, selection, commitCommand, onContextMenu } =
-    opts;
+  const {
+    container,
+    project,
+    projectDir,
+    loadImage,
+    onViewChange,
+    selection,
+    commitCommand,
+    onContextMenu,
+    onDropAsset,
+  } = opts;
   const isNodeLocked = opts.isNodeLocked ?? ((): boolean => false);
   let stage: Konva.Stage | null = null;
   let mainLayer: Konva.Layer | null = null;
@@ -1492,10 +1504,43 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     updateContainerCursor();
   };
 
+  const onContainerDragOver = (e: DragEvent): void => {
+    if (!onDropAsset) {
+      return;
+    }
+    const types = e.dataTransfer?.types ? Array.from(e.dataTransfer.types) : [];
+    const ok = types.some((t) => t === ASSET_DRAG_MIME || t === "text/plain");
+    if (ok) {
+      e.preventDefault();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = "copy";
+      }
+    }
+  };
+
+  const onContainerDrop = (e: DragEvent): void => {
+    if (!onDropAsset || !stage) {
+      return;
+    }
+    const id =
+      e.dataTransfer?.getData(ASSET_DRAG_MIME) || e.dataTransfer?.getData("text/plain") || "";
+    if (!id) {
+      return;
+    }
+    e.preventDefault();
+    const rect = container.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const canvasPt = stageToCanvas(sx, sy);
+    onDropAsset({ assetId: id, canvasX: canvasPt.x, canvasY: canvasPt.y });
+  };
+
   const destroy = (): void => {
     resetNodeDrag();
     resetResize();
     container.removeEventListener("pointerleave", onContainerPointerLeave);
+    container.removeEventListener("dragover", onContainerDragOver);
+    container.removeEventListener("drop", onContainerDrop);
     hoverCursor = "";
     ro?.disconnect();
     ro = null;
@@ -1553,6 +1598,8 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     resetNodeDrag();
     resetResize();
     container.removeEventListener("pointerleave", onContainerPointerLeave);
+    container.removeEventListener("dragover", onContainerDragOver);
+    container.removeEventListener("drop", onContainerDrop);
     hoverCursor = "";
     ro?.disconnect();
     ro = null;
@@ -1618,6 +1665,8 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     window.addEventListener("keydown", onWindowKeyDown);
     window.addEventListener("keyup", onWindowKeyUp);
     container.addEventListener("pointerleave", onContainerPointerLeave);
+    container.addEventListener("dragover", onContainerDragOver);
+    container.addEventListener("drop", onContainerDrop);
 
     ro = new ResizeObserver(() => {
       syncStageSize();

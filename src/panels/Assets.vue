@@ -10,6 +10,7 @@ import {
   normalizeAssetRelPath,
   uniqueAssetIdFromFilename,
 } from "../core/assetImport";
+import { ASSET_DRAG_MIME } from "../canvas/assetDrag";
 import { resolveAssetAbsolute } from "../core/assetPath";
 import * as fileService from "../core/fileService";
 import {
@@ -96,6 +97,12 @@ onUnmounted(() => {
 function tooltipFor(asset: AssetRef): string {
   const name = fileBasename(asset.path);
   return `${name}\n${asset.width}×${asset.height}`;
+}
+
+function onDragStartAsset(a: AssetRef, e: DragEvent): void {
+  e.dataTransfer?.setData(ASSET_DRAG_MIME, a.id);
+  e.dataTransfer?.setData("text/plain", a.id);
+  e.dataTransfer!.effectAllowed = "copy";
 }
 
 async function onImport(): Promise<void> {
@@ -252,8 +259,10 @@ async function onContextMenu(asset: AssetRef, e: MouseEvent): Promise<void> {
         <li
           v-for="a in filteredAssets"
           :key="a.id"
+          draggable="true"
           class="assets__cell"
           :title="tooltipFor(a)"
+          @dragstart="onDragStartAsset(a, $event)"
           @contextmenu="onContextMenu(a, $event)"
         >
           <div class="assets__thumb">

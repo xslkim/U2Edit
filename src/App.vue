@@ -17,6 +17,7 @@ import {
   nextAutoNodeId,
   placementTopLeftInParent,
   resolveInsertParentId,
+  worldTopLeftOfNode,
 } from "./core/addNodeHelpers";
 import type { Command } from "./core/history";
 import {
@@ -27,7 +28,7 @@ import {
   HistoryStack,
   RemoveNodeCommand,
 } from "./core/history";
-import type { Node, NodeType, Project } from "./core/schema";
+import { createDefaultImage, type Node, type NodeType, type Project } from "./core/schema";
 import {
   buildPasteCommand,
   clipboardHasRoots,
@@ -38,6 +39,7 @@ import {
 } from "./core/nodeClipboard";
 import { containerIdForSelectAll, idsDirectChildren } from "./core/selectAll";
 import { reorderCommandForNode } from "./core/reorderNode";
+import { resolveImageDropParentId } from "./canvas/dropParent";
 import type { CanvasContextMenuPayload } from "./canvas/renderer";
 import ContextMenu from "./components/ContextMenu.vue";
 import {
@@ -387,6 +389,37 @@ function commitHistoryCommand(cmd: Command): void {
   history.push(cmd);
   setDirty(true);
   editorCanvasRef.value?.rebuildScene();
+}
+
+/** T2.8：从 Assets 拖入图片到画布 */
+function onCanvasDropAsset(payload: { assetId: string; canvasX: number; canvasY: number }): void {
+  const p = loadedProject.value;
+  if (!p || !projectDir.value) {
+    return;
+  }
+  const asset = p.assets.find((a) => a.id === payload.assetId);
+  if (!asset) {
+    return;
+  }
+  const parentId = resolveImageDropParentId(p, payload.canvasX, payload.canvasY, isNodeLocked);
+  const id = nextAutoNodeId(p, "image");
+  const pwl = worldTopLeftOfNode(p, parentId);
+  const node = createDefaultImage({
+    id,
+    name: id,
+    x: payload.canvasX - pwl.x,
+    y: payload.canvasY - pwl.y,
+    width: asset.width,
+    height: asset.height,
+    assetId: asset.id,
+    pivot: "topLeft",
+  });
+  const list = getChildList(p, parentId);
+  commitHistoryCommand(new AddNodeCommand(p, parentId, list.length, node, "拖入图片"));
+  selectionStore.selectOnly(id);
+  void nextTick(() => {
+    editorCanvasRef.value?.ensureNodeVisible(id);
+  });
 }
 
 function requestPropsRedraw(): void {
@@ -1070,6 +1103,7 @@ function startDragPropsSplit(e: PointerEvent): void {
               :selection="selectionStore"
               :is-node-locked="isNodeLocked"
               :commit-command="commitHistoryCommand"
+              :on-drop-asset="onCanvasDropAsset"
               @view-change="onCanvasViewChange"
               @context-menu="onCanvasContextMenu"
             />
