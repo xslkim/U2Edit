@@ -145,7 +145,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | ID | 任务标题 | 依赖 | 状态 | retry | commit | 报告 | 备注 |
 |----|---------|------|------|-------|--------|------|------|
 | T2.1 | Toolbar 控件添加按钮 | T1.11 | `dev_done` | 0 | 6ffbb44 | [qa-reports/T2.1.md](../qa-reports/T2.1.md) | `ControlAddToolbar`；`addNodeHelpers` |
-| T2.2 | 右键菜单（画布 + 节点树） | T2.1, T1.10 | `dev_done` | 0 | ba53cf9 | [qa-reports/T2.2.md](../qa-reports/T2.2.md) | `ContextMenu.vue`；`nodeClipboard`；`reorderNode` |
+| T2.2 | 右键菜单（画布 + 节点树） | T2.1, T1.10 | `dev_done` | 0 | 41eef70 | [qa-reports/T2.2.md](../qa-reports/T2.2.md) | `ContextMenu.vue`；`nodeClipboard`；`reorderNode` |
 | T2.3 | 复制粘贴删除 | T2.1, T1.4 | `pending` | 0 | | | |
 | T2.4 | 层级调整 | T2.2, T1.4 | `pending` | 0 | | | |
 | T2.5 | Resize 缩放 | T1.9, T1.4 | `pending` | 0 | | | |
