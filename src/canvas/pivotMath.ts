@@ -42,3 +42,15 @@ export function nodeTopLeft(
   const o = pivotOffsetFromTopLeft(pivot, width, height);
   return { x: x - o.x, y: y - o.y };
 }
+
+/** 已知左上角与尺寸，反算 pivot 锚点坐标（与 `nodeTopLeft` 互逆） */
+export function pivotCoordsFromTopLeft(
+  pivot: Pivot,
+  tlX: number,
+  tlY: number,
+  width: number,
+  height: number,
+): { x: number; y: number } {
+  const o = pivotOffsetFromTopLeft(pivot, width, height);
+  return { x: tlX + o.x, y: tlY + o.y };
+}

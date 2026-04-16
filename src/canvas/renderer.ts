@@ -1,5 +1,6 @@
 import Konva from "konva";
 import { resolveAssetAbsolute } from "../core/assetPath";
+import { worldTopLeftOfNode } from "../core/addNodeHelpers";
 import type { Command } from "../core/history";
 import { CompositeCommand, findNode, PatchNodeCommand } from "../core/history";
 import type {
@@ -36,10 +37,12 @@ import {
   topHitId,
   type CanvasAabb,
 } from "./nodeHit";
+import { applyWorldAabbToNode, resizeWorldAabbByPointer } from "./resizeMath";
 import {
   buildSelectionOverlayLayer,
   cursorCssForHandleIndex,
   hitTestResizeHandle,
+  type ResizeHandleIndex,
 } from "./selectionOverlay";
 
 /** 从磁盘绝对路径加载位图（由宿主注入；失败返回 null） */
@@ -654,8 +657,22 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
   let nodeDragIds: string[] = [];
   let nodeDragSnapshots: Map<string, Node> = new Map();
 
+  /** T2.5 缩放拖拽 */
+  let resizeActive = false;
+  let resizeNodeId: string | null = null;
+  let resizeHandle: ResizeHandleIndex = 7;
+  let resizeSnapshot: Node | null = null;
+  let resizeStartWorldBox: CanvasAabb = { x: 0, y: 0, width: 0, height: 0 };
+  let resizeAspect = 1;
+
   /** T1.13：悬停命中（平移/拖拽中由 updateContainerCursor 覆盖） */
   let hoverCursor = "";
+
+  const resetResize = (): void => {
+    resizeActive = false;
+    resizeNodeId = null;
+    resizeSnapshot = null;
+  };
 
   const resetNodeDrag = (): void => {
     nodeDragPending = false;
@@ -718,10 +735,29 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     for (const id of ids) {
       const n = byId.get(id);
       if (n) {
-        boxes.push(getCanvasAabb(n));
+        const tl = worldTopLeftOfNode(project, id);
+        boxes.push({ x: tl.x, y: tl.y, width: n.width, height: n.height });
       }
     }
     return boxes;
+  };
+
+  /** 与 `collectSelectionBoxes` 顺序一致，供手柄 boxIndex → nodeId */
+  const selectionIdsAlignedToBoxes = (): string[] => {
+    const ids = selection.selectedIds.value;
+    if (ids.size === 0 || !project.nodes[0]) {
+      return [];
+    }
+    const paintOrder = collectVisiblePaintOrder(project.nodes[0]);
+    const byId = new Map(paintOrder.map((n) => [n.id, n]));
+    const out: string[] = [];
+    for (const id of ids) {
+      const n = byId.get(id);
+      if (n) {
+        out.push(id);
+      }
+    }
+    return out;
   };
 
   const updateHoverCursorFromCanvas = (canvasX: number, canvasY: number): void => {
@@ -747,7 +783,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
   };
 
   const refreshHoverCursorFromStage = (): void => {
-    if (!stage || panDragging || nodeDragActive || nodeDragPending) {
+    if (!stage || panDragging || nodeDragActive || nodeDragPending || resizeActive) {
       updateContainerCursor();
       return;
     }
@@ -798,6 +834,10 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     }
     if (nodeDragPending && !nodeDragActive) {
       container.style.cursor = "pointer";
+      return;
+    }
+    if (resizeActive) {
+      container.style.cursor = hoverCursor || "";
       return;
     }
     if (spaceHeld) {
@@ -880,6 +920,48 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     }
 
     const canvasPt = stageToCanvas(p.x, p.y);
+
+    if (commitCommand) {
+      const boxes = collectSelectionBoxes();
+      const rh = hitTestResizeHandle(canvasPt.x, canvasPt.y, boxes);
+      if (rh) {
+        const ids = selectionIdsAlignedToBoxes();
+        const targetId = ids[rh.boxIndex];
+        const rid = rootPanelId();
+        if (
+          targetId &&
+          targetId !== rid &&
+          !isNodeLocked(targetId) &&
+          findNode(project, targetId)?.parent
+        ) {
+          const f = findNode(project, targetId);
+          if (f) {
+            resizeActive = true;
+            resizeNodeId = targetId;
+            resizeHandle = rh.handle;
+            resizeSnapshot = structuredClone(f.node);
+            const tl = worldTopLeftOfNode(project, targetId);
+            resizeStartWorldBox = {
+              x: tl.x,
+              y: tl.y,
+              width: f.node.width,
+              height: f.node.height,
+            };
+            resizeAspect =
+              f.node.height > 0 ? f.node.width / f.node.height : 1;
+            emptyClickPending = false;
+            marqueeActive = false;
+            screenMarqueeStart = null;
+            canvasMarqueeStart = null;
+            destroyMarqueeVisual();
+            hoverCursor = cursorCssForHandleIndex(resizeHandle);
+            updateContainerCursor();
+            return;
+          }
+        }
+      }
+    }
+
     const paintOrder = collectVisiblePaintOrder(project.nodes[0]);
     const hitsRaw = nodesHitByPoint(paintOrder, canvasPt.x, canvasPt.y);
     const hits = filterUnlockedNodes(hitsRaw, isNodeLocked);
@@ -967,6 +1049,30 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
       return;
     }
 
+    if (resizeActive && resizeNodeId && resizeSnapshot && stage) {
+      const p = stage.getPointerPosition();
+      if (!p) {
+        updateContainerCursor();
+        return;
+      }
+      const cur = stageToCanvas(p.x, p.y);
+      const newBox = resizeWorldAabbByPointer(
+        resizeStartWorldBox,
+        resizeHandle,
+        cur.x,
+        cur.y,
+        e.shiftKey,
+        resizeAspect,
+        resizeSnapshot.pivot,
+      );
+      applyWorldAabbToNode(project, resizeNodeId, newBox);
+      rebuildContent();
+      updateSelectionOverlay();
+      hoverCursor = cursorCssForHandleIndex(resizeHandle);
+      updateContainerCursor();
+      return;
+    }
+
     if ((nodeDragPending || nodeDragActive) && stage && nodeDragStartCanvas) {
       const p = stage.getPointerPosition();
       if (!p) {
@@ -1007,7 +1113,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
       return;
     }
 
-    if (stage && !nodeDragActive && !nodeDragPending) {
+    if (stage && !nodeDragActive && !nodeDragPending && !resizeActive) {
       const ph = stage.getPointerPosition();
       if (ph) {
         const c = stageToCanvas(ph.x, ph.y);
@@ -1057,6 +1163,34 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
   const onWindowMouseUp = (e: MouseEvent): void => {
     if (panDragging) {
       panDragging = false;
+      refreshHoverCursorFromStage();
+      return;
+    }
+
+    if (resizeActive) {
+      if (resizeNodeId && resizeSnapshot && commitCommand) {
+        const f = findNode(project, resizeNodeId);
+        if (f) {
+          const snap = resizeSnapshot;
+          const unchanged =
+            snap.x === f.node.x &&
+            snap.y === f.node.y &&
+            snap.width === f.node.width &&
+            snap.height === f.node.height;
+          if (!unchanged) {
+            commitCommand(
+              new PatchNodeCommand(
+                project,
+                resizeNodeId,
+                { x: f.node.x, y: f.node.y, width: f.node.width, height: f.node.height },
+                "缩放",
+                snap,
+              ),
+            );
+          }
+        }
+      }
+      resetResize();
       refreshHoverCursorFromStage();
       return;
     }
@@ -1255,6 +1389,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
 
   const destroy = (): void => {
     resetNodeDrag();
+    resetResize();
     container.removeEventListener("pointerleave", onContainerPointerLeave);
     hoverCursor = "";
     ro?.disconnect();
@@ -1310,6 +1445,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
 
   const redraw = async (): Promise<void> => {
     resetNodeDrag();
+    resetResize();
     container.removeEventListener("pointerleave", onContainerPointerLeave);
     hoverCursor = "";
     ro?.disconnect();
