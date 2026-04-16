@@ -136,7 +136,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | T1.9 | 单选与多选 | T1.7 | `dev_done` | 0 | dda6a01 | [qa-reports/T1.9.md](../qa-reports/T1.9.md) | `SelectionStore` + schema 命中；Properties 待 T1.11 |
 | T1.10 | 节点树面板（基础） | T1.9 | `dev_done` | 0 | 629f9b9 | [qa-reports/T1.10.md](../qa-reports/T1.10.md) | `NodeTree.vue`；锁定仅会话 |
 | T1.11 | Properties 面板（基础属性） | T1.9, T1.4 | `dev_done` | 0 | f1ae784 | [qa-reports/T1.11.md](../qa-reports/T1.11.md) | `Properties.vue`；Ctrl+Z/Y；打开/新建清空历史 |
-| T1.12 | 拖拽移动节点 | T1.9, T1.4 | `dev_done` | 0 | PLACEHOLDER | [qa-reports/T1.12.md](../qa-reports/T1.12.md) | `renderer` 画布拖拽 + 方向键；单击已选不拆多选 |
+| T1.12 | 拖拽移动节点 | T1.9, T1.4 | `dev_done` | 0 | 945338e | [qa-reports/T1.12.md](../qa-reports/T1.12.md) | `renderer` 画布拖拽 + 方向键；单击已选不拆多选 |
 | T1.13 | 画布鼠标指针状态 | T1.12 | `pending` | 0 | | | |
 | T1.14 | 颜色选择器与 assetId 选择器 | T1.11 | `pending` | 0 | | | |
 
