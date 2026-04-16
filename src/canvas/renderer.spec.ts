@@ -32,13 +32,13 @@ function minimalProject(assets: Project["assets"]): Project {
 
 describe("resolveAssetAbsolute", () => {
   it("returns null when projectDir or assetId missing", () => {
-    const p = minimalProject([{ id: "a", path: "assets/x.png" }]);
+    const p = minimalProject([{ id: "a", path: "assets/x.png", width: 1, height: 1 }]);
     expect(resolveAssetAbsolute(p, null, "a")).toBeNull();
     expect(resolveAssetAbsolute(p, "C:\\proj", null)).toBeNull();
   });
 
   it("joins project dir with asset path from manifest", () => {
-    const p = minimalProject([{ id: "bg", path: "assets/ui/bg.png" }]);
+    const p = minimalProject([{ id: "bg", path: "assets/ui/bg.png", width: 1, height: 1 }]);
     const abs = resolveAssetAbsolute(p, "C:\\MyProj", "bg");
     expect(abs).toMatch(/[/\\]MyProj[/\\]assets[/\\]ui[/\\]bg\.png$/);
   });
