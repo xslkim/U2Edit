@@ -18,6 +18,7 @@ import {
   setWindowDirty,
 } from "./core/windowGuard";
 import { applyWindowTitle } from "./core/windowTitle";
+import EditorCanvas from "./canvas/EditorCanvas.vue";
 
 const TREE_MIN = 150;
 const TREE_MAX = 500;
@@ -522,17 +523,25 @@ function startDragPropsSplit(e: PointerEvent): void {
           @pointerdown="startDragTreeWidth"
         />
 
-        <main class="canvas" aria-label="Canvas">
-          <template v-if="loadedProject">
-            <div class="canvas__label">{{ loadedProject.meta.name }}</div>
-            <p class="canvas__hint">
-              画布 {{ loadedProject.meta.canvasWidth }}×{{ loadedProject.meta.canvasHeight }} ·
-              Konva 见 T1.7
-            </p>
-            <p class="canvas__path">{{ projectDir }}</p>
-            <button type="button" class="btn-sm canvas__demo" @click="touchProjectDirtyDemo">
-              试改画布宽 +1（测未保存 *）
-            </button>
+        <main
+          class="canvas"
+          :class="{ 'canvas--empty': !loadedProject || !projectDir }"
+          aria-label="Canvas"
+        >
+          <template v-if="loadedProject && projectDir">
+            <div class="canvas__chrome">
+              <div class="canvas__meta">
+                <span class="canvas__label">{{ loadedProject.meta.name }}</span>
+                <span class="canvas__hint">
+                  {{ loadedProject.meta.canvasWidth }}×{{ loadedProject.meta.canvasHeight }}
+                </span>
+              </div>
+              <p class="canvas__path">{{ projectDir }}</p>
+              <button type="button" class="btn-sm canvas__demo" @click="touchProjectDirtyDemo">
+                试改画布宽 +1（测未保存 *）
+              </button>
+            </div>
+            <EditorCanvas class="canvas__stage" :project="loadedProject" :project-dir="projectDir" />
           </template>
           <template v-else>
             <div class="canvas__label">Canvas 画布</div>
@@ -932,37 +941,63 @@ body,
 .canvas {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
   background: #52525b;
   color: #e4e4e7;
-  text-align: center;
-  padding: 1rem;
+  padding: 0;
+}
+
+.canvas__chrome {
+  flex: none;
+  padding: 0.35rem 0.5rem;
+  background: #3f3f46;
+  border-bottom: 1px solid #52525b;
+  text-align: left;
+}
+
+.canvas__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.canvas__stage {
+  flex: 1;
+  min-height: 0;
 }
 
 .canvas__label {
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   font-weight: 600;
 }
 
 .canvas__hint {
-  margin: 0.5rem 0 0;
-  font-size: 0.85rem;
+  margin: 0;
+  font-size: 0.8rem;
   opacity: 0.85;
 }
 
 .canvas__path {
-  margin: 0.35rem 0 0;
-  font-size: 0.75rem;
+  margin: 0.2rem 0 0;
+  font-size: 0.7rem;
   opacity: 0.75;
   word-break: break-all;
   max-width: 100%;
 }
 
 .canvas__demo {
-  margin-top: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+.canvas--empty {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1rem;
 }
 
 .statusbar {

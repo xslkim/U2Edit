@@ -83,12 +83,12 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | 里程碑 | 状态 | 任务总数 | 完成数 | 进度 |
 |--------|------|---------|--------|------|
 | M0 — 工程搭建与 POC | `completed` | 7 | 7 | 100% |
-| M1 — 基础编辑器 | `in_progress` | 14 | 6 | 43% |
+| M1 — 基础编辑器 | `in_progress` | 14 | 7 | 50% |
 | M2 — 完整控件 & 资源 & 编辑操作 | `pending` | 12 | 0 | 0% |
 | M3 — Unity 导出 | `pending` | 3 | 0 | 0% |
 | M4 — Unreal 导出 | `pending` | 2 | 0 | 0% |
 | M5 — 打磨 | `pending` | 3 | 0 | 0% |
-| **总计** | | **41** | **13** | 32% |
+| **总计** | | **41** | **14** | 34% |
 
 ---
 
@@ -131,7 +131,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | T1.4 | 命令模式撤销重做框架 | T1.1 | `passed` | 0 | 90c88e3 | [qa-reports/T1.4.md](../qa-reports/T1.4.md) | |
 | T1.5 | 主窗口四面板布局 | T0.1 | `passed` | 0 | 6bc6aee | [qa-reports/T1.5.md](../qa-reports/T1.5.md) | |
 | T1.6 | 新建/打开/保存项目 | T1.2, T1.5 | `passed` | 0 | 3aa6c17 | [qa-reports/T1.6.md](../qa-reports/T1.6.md) | |
-| T1.7 | 画布基础渲染（Konva 集成） | T1.5, T1.6 | `pending` | 0 | | | |
+| T1.7 | 画布基础渲染（Konva 集成） | T1.5, T1.6 | `dev_done` | 0 | ee186a6 | [qa-reports/T1.7.md](../qa-reports/T1.7.md) | `renderer.ts` + `EditorCanvas.vue`；真机视觉待 QA |
 | T1.8 | 画布缩放与平移 | T1.7 | `pending` | 0 | | | 含 StatusBar 四项信息 |
 | T1.9 | 单选与多选 | T1.7 | `pending` | 0 | | | |
 | T1.10 | 节点树面板（基础） | T1.9 | `pending` | 0 | | | |
