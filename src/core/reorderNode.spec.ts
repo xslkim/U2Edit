@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findNode, getChildList } from "./history";
+import { getChildList } from "./history";
 import { createDefaultPanel, createDefaultText } from "./schema";
 import type { ExportConfig, Project } from "./schema";
 import { reorderCommandForNode } from "./reorderNode";

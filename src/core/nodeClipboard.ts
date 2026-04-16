@@ -1,5 +1,11 @@
 import { maxSuffixForType, placementTopLeftInParent } from "./addNodeHelpers";
-import { AddNodeCommand, CompositeCommand, findNode, getChildList, type Command } from "./history";
+import {
+  AddNodeCommand,
+  CompositeCommand,
+  findNode,
+  getChildList,
+  type Command,
+} from "./history";
 import type { Node, NodeType, Project } from "./schema";
 
 const NODE_TYPES: NodeType[] = [
@@ -94,7 +100,18 @@ export function remappedCloneRoots(project: Project, roots: Node[]): Node[] {
 
 export type PastePlacement =
   | { kind: "canvas"; x: number; y: number }
-  | { kind: "viewport-center"; center: { x: number; y: number } };
+  | { kind: "viewport-center"; center: { x: number; y: number } }
+  /** T2.3：在剪贴板副本坐标上平移（相对当前粘贴父节点的局部坐标） */
+  | { kind: "local-offset"; dx: number; dy: number };
+
+/** Ctrl+V / Ctrl+D 默认偏移（requirements §2.6.5 / tasks T2.3） */
+export const SHORTCUT_PASTE_OFFSET = 10;
+
+export interface PasteCommandResult {
+  command: Command;
+  /** 粘贴后根节点 id（供选中） */
+  newRootIds: string[];
+}
 
 /** 将剪贴板根列表粘贴到父节点下（末尾追加）；剪贴板为空返回 null */
 export function buildPasteCommand(
@@ -102,36 +119,46 @@ export function buildPasteCommand(
   clipboardRoots: Node[] | null | undefined,
   parentId: string,
   placement: PastePlacement,
-): Command | null {
+): PasteCommandResult | null {
   if (!clipboardRoots || clipboardRoots.length === 0) {
     return null;
   }
   const newRoots = remappedCloneRoots(project, clipboardRoots);
+  if (placement.kind === "local-offset") {
+    for (const root of newRoots) {
+      root.x += placement.dx;
+      root.y += placement.dy;
+    }
+  } else {
+    for (let i = 0; i < newRoots.length; i++) {
+      const node = newRoots[i];
+      const ox = i * 16;
+      const oy = i * 16;
+      let cx: number;
+      let cy: number;
+      if (placement.kind === "canvas") {
+        cx = placement.x + ox;
+        cy = placement.y + oy;
+      } else {
+        cx = placement.center.x + ox;
+        cy = placement.center.y + oy;
+      }
+      const pos = placementTopLeftInParent(project, parentId, { x: cx, y: cy }, node.width, node.height);
+      node.x = pos.x;
+      node.y = pos.y;
+    }
+  }
+  const newRootIds = newRoots.map((r) => r.id);
   const list = getChildList(project, parentId);
   const start = list.length;
   const cmds: AddNodeCommand[] = [];
   for (let i = 0; i < newRoots.length; i++) {
-    const node = newRoots[i];
-    const ox = i * 16;
-    const oy = i * 16;
-    let cx: number;
-    let cy: number;
-    if (placement.kind === "canvas") {
-      cx = placement.x + ox;
-      cy = placement.y + oy;
-    } else {
-      cx = placement.center.x + ox;
-      cy = placement.center.y + oy;
-    }
-    const pos = placementTopLeftInParent(project, parentId, { x: cx, y: cy }, node.width, node.height);
-    node.x = pos.x;
-    node.y = pos.y;
-    cmds.push(new AddNodeCommand(project, parentId, start + i, node, "粘贴"));
+    cmds.push(new AddNodeCommand(project, parentId, start + i, newRoots[i], "粘贴"));
   }
   if (cmds.length === 1) {
-    return cmds[0];
+    return { command: cmds[0], newRootIds };
   }
-  return new CompositeCommand(cmds, "粘贴");
+  return { command: new CompositeCommand(cmds, "粘贴"), newRootIds };
 }
 
 /** 用于测试：子树内全部 id */

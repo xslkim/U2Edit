@@ -8,6 +8,7 @@ import {
   copyRootsFromSelection,
   remappedCloneRoots,
   selectionRootIds,
+  SHORTCUT_PASTE_OFFSET,
 } from "./nodeClipboard";
 
 const minimalExport: ExportConfig = {
@@ -61,7 +62,8 @@ describe("nodeClipboard", () => {
     const copied = copyRootsFromSelection(p, sel);
     expect(copied).toHaveLength(1);
     expect(copied[0].id).toBe("panel_1");
-    expect(findNode(p, "panel_1")!.node.children).toHaveLength(1);
+    const orig = findNode(p, "panel_1")!.node;
+    expect(orig.type === "panel" ? orig.children.length : 0).toBe(1);
   });
 
   it("remappedCloneRoots 生成全新 id", () => {
@@ -89,14 +91,30 @@ describe("nodeClipboard", () => {
   it("粘贴入栈后子树出现在父节点下", () => {
     const p = nestedProject();
     const roots = copyRootsFromSelection(p, new Set(["panel_1"]));
-    const cmd = buildPasteCommand(p, roots, "root_panel", { kind: "canvas", x: 100, y: 100 });
-    expect(cmd).not.toBeNull();
+    const r = buildPasteCommand(p, roots, "root_panel", { kind: "canvas", x: 100, y: 100 });
+    expect(r).not.toBeNull();
     const h = new HistoryStack();
-    h.push(cmd!);
+    h.push(r!.command);
     const list = getChildList(p, "root_panel");
     expect(list.length).toBe(2);
     const pasted = list[1];
     expect(pasted.id).not.toBe("panel_1");
     expect("children" in pasted && pasted.children.length).toBe(1);
+  });
+
+  it("T2.3：local-offset 为根节点加 (10,10)", () => {
+    const p = nestedProject();
+    const roots = copyRootsFromSelection(p, new Set(["panel_1"]));
+    const r = buildPasteCommand(p, roots, "root_panel", {
+      kind: "local-offset",
+      dx: SHORTCUT_PASTE_OFFSET,
+      dy: SHORTCUT_PASTE_OFFSET,
+    });
+    expect(r).not.toBeNull();
+    const h = new HistoryStack();
+    h.push(r!.command);
+    const pasted = getChildList(p, "root_panel")[1];
+    expect(pasted.x).toBe(10);
+    expect(pasted.y).toBe(10);
   });
 });

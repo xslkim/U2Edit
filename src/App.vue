@@ -21,6 +21,7 @@ import {
 import type { Command } from "./core/history";
 import {
   AddNodeCommand,
+  CompositeCommand,
   findNode,
   getChildList,
   HistoryStack,
@@ -31,7 +32,11 @@ import {
   buildPasteCommand,
   clipboardHasRoots,
   copyRootsFromSelection,
+  selectionRootIds,
+  SHORTCUT_PASTE_OFFSET,
+  type PastePlacement,
 } from "./core/nodeClipboard";
+import { containerIdForSelectAll, idsDirectChildren } from "./core/selectAll";
 import { reorderCommandForNode } from "./core/reorderNode";
 import type { CanvasContextMenuPayload } from "./canvas/renderer";
 import ContextMenu from "./components/ContextMenu.vue";
@@ -208,12 +213,34 @@ function onCtxCopy(): void {
   memoryClipboardRoots.value = copyRootsFromSelection(p, selectionStore.selectedIds.value);
 }
 
-function onCtxPaste(): void {
+function performPasteFromClipboard(placement: PastePlacement): void {
   const p = loadedProject.value;
   if (!p) {
     return;
   }
   const parentId = resolveInsertParentId(p, selectionStore.selectedIds.value);
+  const r = buildPasteCommand(p, memoryClipboardRoots.value, parentId, placement);
+  if (!r) {
+    return;
+  }
+  commitHistoryCommand(r.command);
+  if (r.newRootIds.length === 1) {
+    selectionStore.selectOnly(r.newRootIds[0]);
+  } else if (r.newRootIds.length > 1) {
+    selectionStore.setAll(new Set(r.newRootIds));
+  }
+  void nextTick(() => {
+    if (r.newRootIds.length === 1) {
+      editorCanvasRef.value?.ensureNodeVisible(r.newRootIds[0]);
+    }
+  });
+}
+
+function onCtxPaste(): void {
+  const p = loadedProject.value;
+  if (!p) {
+    return;
+  }
   const placement =
     ctxCanvasPoint.value != null
       ? ({ kind: "canvas", x: ctxCanvasPoint.value.x, y: ctxCanvasPoint.value.y } as const)
@@ -227,11 +254,31 @@ function onCtxPaste(): void {
   if (!placement) {
     return;
   }
-  const cmd = buildPasteCommand(p, memoryClipboardRoots.value, parentId, placement);
-  if (!cmd) {
+  performPasteFromClipboard(placement);
+}
+
+function onDeleteSelectedNodes(): void {
+  const p = loadedProject.value;
+  if (!p) {
     return;
   }
-  commitHistoryCommand(cmd);
+  const rid = p.nodes[0]?.id;
+  if (!rid) {
+    return;
+  }
+  const roots = selectionRootIds(p, selectionStore.selectedIds.value).filter(
+    (id) => id !== rid && !isNodeLocked(id),
+  );
+  if (roots.length === 0) {
+    return;
+  }
+  const cmds = roots.map((id) => new RemoveNodeCommand(p, id, "删除"));
+  if (cmds.length === 1) {
+    commitHistoryCommand(cmds[0]);
+  } else {
+    commitHistoryCommand(new CompositeCommand(cmds, "删除"));
+  }
+  selectionStore.clear();
 }
 
 function onCtxDelete(): void {
@@ -541,6 +588,7 @@ function onGlobalKeydown(e: KeyboardEvent): void {
   if (isEditableDomTarget(e.target)) {
     return;
   }
+  const p = loadedProject.value;
   if (e.ctrlKey || e.metaKey) {
     const k = e.key.toLowerCase();
     if (k === "z") {
@@ -562,7 +610,57 @@ function onGlobalKeydown(e: KeyboardEvent): void {
         setDirty(true);
         editorCanvasRef.value?.rebuildScene();
       }
+      return;
     }
+    if (p) {
+      if (k === "c") {
+        e.preventDefault();
+        memoryClipboardRoots.value = copyRootsFromSelection(p, selectionStore.selectedIds.value);
+        return;
+      }
+      if (k === "v") {
+        e.preventDefault();
+        if (!clipboardHasRoots(memoryClipboardRoots.value)) {
+          return;
+        }
+        performPasteFromClipboard({
+          kind: "local-offset",
+          dx: SHORTCUT_PASTE_OFFSET,
+          dy: SHORTCUT_PASTE_OFFSET,
+        });
+        return;
+      }
+      if (k === "d") {
+        e.preventDefault();
+        memoryClipboardRoots.value = copyRootsFromSelection(p, selectionStore.selectedIds.value);
+        if (!clipboardHasRoots(memoryClipboardRoots.value)) {
+          return;
+        }
+        performPasteFromClipboard({
+          kind: "local-offset",
+          dx: SHORTCUT_PASTE_OFFSET,
+          dy: SHORTCUT_PASTE_OFFSET,
+        });
+        return;
+      }
+      if (k === "a") {
+        e.preventDefault();
+        const cid = containerIdForSelectAll(p, selectionStore.selectedIds.value);
+        if (!cid) {
+          return;
+        }
+        selectionStore.setAll(new Set(idsDirectChildren(p, cid)));
+        return;
+      }
+    }
+  }
+
+  if (e.key === "Delete" && p) {
+    if (e.repeat) {
+      return;
+    }
+    e.preventDefault();
+    onDeleteSelectedNodes();
   }
 }
 
