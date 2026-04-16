@@ -161,7 +161,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 
 | ID | 任务标题 | 依赖 | 状态 | retry | commit | 报告 | 备注 |
 |----|---------|------|------|-------|--------|------|------|
-| T3.1 | Unity C# 代码生成器 | T1.1, T1.2, T2.7, T0.4 | `dev_done` | 0 | 1aa93ca | [qa-reports/T3.1.md](../qa-reports/T3.1.md) | `generateUnityScript`；**QA 测试暂缓** |
+| T3.1 | Unity C# 代码生成器 | T1.1, T1.2, T2.7, T0.4 | `dev_done` | 0 | 608cff4 | [qa-reports/T3.1.md](../qa-reports/T3.1.md) | `generateUnityScript`；**QA 测试暂缓** |
 | T3.2 | 导出设置对话框 | T3.1 | `pending` | 0 | | | **QA 测试暂缓** |
 | T3.3 | Unity 导出端到端回归 | T3.2 | `pending` | 0 | | | **QA 测试暂缓** |
 
