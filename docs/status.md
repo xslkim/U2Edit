@@ -9,7 +9,7 @@
 
 ## 0. 当前阶段说明（v1.1 新增）
 
-- **M0 进度**：T0.1–T0.3、**T0.6** 已实现并 `passed`（见 §4）；T0.4、T0.5、T0.7 仍 `pending`。
+- **M0 进度**：T0.1–T0.3、**T0.6** 已实现并 `passed`（见 §4）；**T0.7** 已 `dev_done`，待 QA；T0.4、T0.5 仍 `pending`。
 - **QA Agent 当前不进入 `testing` 状态**，避免把"未实现"误判为"实现错误"。QA 在本阶段做：
   1. 测试方案与文档审查（已产出本轮歧义清单）
   2. 准备 fixture（示例 YAML、压测脚本）与基线快照
@@ -119,7 +119,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 | T0.4 | Unity C# Editor 脚本 POC | — | `pending` | 0 | | | 独立引擎工程；**QA 测试暂缓**（见第 0 节） |
 | T0.5 | Unreal Python 脚本 POC ⚠️ | — | `pending` | 0 | | | **关键风险点**，结论填入 D1；**QA 测试暂缓** |
 | T0.6 | Konva.js 画布性能 POC | T0.1 | `passed` | 0 | 06ffd32 | [qa-reports/T0.6.md](../qa-reports/T0.6.md) | D3 已更新 |
-| T0.7 | 中文 IME 输入验证 | T0.1 | `pending` | 0 | | | |
+| T0.7 | 中文 IME 输入验证 | T0.1 | `dev_done` | 0 | （见本任务交付提交） | | 待 QA |
 
 ### M1 — 基础编辑器
 
