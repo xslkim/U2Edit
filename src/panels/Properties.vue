@@ -861,6 +861,92 @@ const dragField = ref<string | null>(null);
 const dragBeforeById = ref<Map<string, Node>>(new Map());
 let dragLastClientX = 0;
 
+/**
+ * 数值输入框（X/Y/W/H）实时预览会话。
+ *
+ * 问题：用户在输入框中键入时，若点击画布上另一个节点，
+ *   ① mousedown 立即更改选中状态；
+ *   ② Vue 微任务重新渲染，把输入框的值覆盖为新节点的值；
+ *   ③ @change 以被覆盖的值触发，作用于错误节点，用户编辑丢失。
+ *
+ * 解决方案（与拖动标签改值完全相同的模式）：
+ *   - @focus  : 快照当前节点数值（用于撤销）+ 记录目标节点 id
+ *   - @input  : 就地修改节点数据 + requestRedraw（实时预览）
+ *   - @change : 创建含前置快照的 PatchNodeCommand，写入历史
+ *   - Esc     : 恢复快照，放弃编辑
+ */
+type NumericKey = "x" | "y" | "width" | "height";
+const numericSession = ref<{
+  key: NumericKey;
+  ids: string[];
+  beforeById: Map<string, Node>;
+  lastValue: number | null;
+} | null>(null);
+
+function onNumericFocus(key: NumericKey): void {
+  const ids = selectedNodes.value.map((n) => n.id);
+  const beforeById = new Map<string, Node>();
+  for (const id of ids) {
+    const f = findNode(props.project, id);
+    if (f) {
+      beforeById.set(id, structuredClone(f.node));
+    }
+  }
+  numericSession.value = { key, ids, beforeById, lastValue: null };
+}
+
+function onNumericInputPreview(key: NumericKey, rawValue: string): void {
+  const n = Number(rawValue);
+  if (isNaN(n)) {
+    return;
+  }
+  const session = numericSession.value;
+  if (!session || session.key !== key) {
+    // 如果 focus 事件未触发（极端情况），用当前选中节点兜底
+    onNumericFocus(key);
+  }
+  const cur = numericSession.value!;
+  cur.lastValue = n;
+  // 就地修改，触发实时预览（不写历史）
+  for (const id of cur.ids) {
+    const f = findNode(props.project, id);
+    if (f) {
+      (f.node as unknown as Record<string, unknown>)[key] = n;
+    }
+  }
+  props.requestRedraw?.();
+}
+
+function onNumericEscape(key: NumericKey, inputEl: HTMLInputElement): void {
+  const session = numericSession.value;
+  if (!session || session.key !== key) {
+    return;
+  }
+  // 恢复到 focus 时的原始值
+  for (const [id, snap] of session.beforeById) {
+    const f = findNode(props.project, id);
+    if (f) {
+      (f.node as unknown as Record<string, unknown>)[key] = (snap as unknown as Record<string, unknown>)[key];
+    }
+  }
+  numericSession.value = null;
+  props.requestRedraw?.();
+  inputEl.blur();
+}
+
+/** 文本/名称输入框的意图捕获：只需记录节点 id，value 直接从事件读取 */
+const textInputFocusIds = ref<string[]>([]);
+
+function onTextInputFocus(): void {
+  textInputFocusIds.value = selectedNodes.value.map((n) => n.id);
+}
+
+function getTextInputIds(): string[] {
+  return textInputFocusIds.value.length > 0
+    ? textInputFocusIds.value
+    : selectedNodes.value.map((n) => n.id);
+}
+
 const selectedNodes = computed((): Node[] => {
   const ids = [...props.selection.selectedIds.value];
   const out: Node[] = [];
@@ -1099,15 +1185,42 @@ function pushPatches(
   }
 }
 
-function commitNumericField(key: "x" | "y" | "width" | "height", value: number): void {
-  const ids = selectedNodes.value.map((n) => n.id);
-  const ps = ids.map((id) => ({ id, patch: { [key]: value } as Record<string, unknown> }));
-  pushPatches(ps, key.toUpperCase());
+function commitNumericField(key: NumericKey, rawValue: number): void {
+  const session = numericSession.value;
+  numericSession.value = null;
+
+  // 使用 session 里捕获的节点 id 与最后键入的值；
+  // 若 session 不存在（极端情况），降级到当前选中节点
+  const ids = session ? session.ids : selectedNodes.value.map((n) => n.id);
+  const effectiveValue = session?.lastValue ?? rawValue;
+
+  if (ids.length === 0) {
+    return;
+  }
+
+  // 用 @focus 时的快照构建 PatchNodeCommand，保证撤销正确
+  const cmds: Command[] = ids.map((id) => {
+    const snap = session?.beforeById.get(id);
+    return new PatchNodeCommand(
+      props.project,
+      id,
+      { [key]: effectiveValue } as Record<string, unknown>,
+      key.toUpperCase(),
+      snap,
+    );
+  });
+
+  if (cmds.length === 1) {
+    props.commitCommand(cmds[0]);
+  } else {
+    props.commitCommand(new CompositeCommand(cmds, key.toUpperCase()));
+  }
 }
 
 function commitOpacity(value: number): void {
   const v = Math.min(1, Math.max(0, value));
-  const ids = selectedNodes.value.map((n) => n.id);
+  const ids = getTextInputIds();
+  textInputFocusIds.value = [];
   pushPatches(
     ids.map((id) => ({ id, patch: { opacity: v } })),
     "opacity",
@@ -1125,7 +1238,8 @@ function commitVisible(value: boolean): void {
 }
 
 function commitName(value: string): void {
-  const ids = selectedNodes.value.map((n) => n.id);
+  const ids = getTextInputIds();
+  textInputFocusIds.value = [];
   pushPatches(ids.map((id) => ({ id, patch: { name: value } })), "name");
 }
 
@@ -1148,9 +1262,12 @@ function onIdBlur(): void {
     return;
   }
   idError.value = false;
+  const oldId = node.id;
   props.commitCommand(
-    new PatchNodeCommand(props.project, node.id, { id: raw }, "重命名 id", structuredClone(node)),
+    new PatchNodeCommand(props.project, oldId, { id: raw }, "重命名 id", structuredClone(node)),
   );
+  // 更新选中状态到新 id，否则后续属性编辑会因找不到旧 id 而失效
+  props.selection.selectOnly(raw);
 }
 
 function onNumberKeydown(
@@ -1165,7 +1282,14 @@ function onNumberKeydown(
     e.preventDefault();
     const step = e.shiftKey ? 10 : 1;
     const dir = e.key === "ArrowUp" ? 1 : -1;
-    commitNumericField(key, current + dir * step);
+    const newValue = current + dir * step;
+    // 强制将 lastValue 设为目标值，确保 commitNumericField 不使用旧的键入意图
+    if (numericSession.value) {
+      numericSession.value = { ...numericSession.value, lastValue: newValue };
+    }
+    commitNumericField(key, newValue);
+    // 重新快照，使下次 ArrowUp/Down 产生独立的撤销条目
+    onNumericFocus(key);
   }
 }
 
@@ -1262,12 +1386,22 @@ onUnmounted(() => {
 // —— 控件特有 ——
 
 function commitTextContent(value: string): void {
-  const ids = selectedNodes.value.filter((n) => n.type === "text").map((n) => n.id);
+  const focusIds = getTextInputIds();
+  textInputFocusIds.value = [];
+  const ids = focusIds.filter((id) => {
+    const f = findNode(props.project, id);
+    return f?.node.type === "text";
+  });
   pushPatches(ids.map((id) => ({ id, patch: { content: value } })), "文本");
 }
 
 function commitTextFontSize(value: number): void {
-  const ids = selectedNodes.value.filter((n) => n.type === "text").map((n) => n.id);
+  const focusIds = getTextInputIds();
+  textInputFocusIds.value = [];
+  const ids = focusIds.filter((id) => {
+    const f = findNode(props.project, id);
+    return f?.node.type === "text";
+  });
   pushPatches(ids.map((id) => ({ id, patch: { fontSize: value } })), "字号");
 }
 
@@ -1277,28 +1411,30 @@ function commitTextAlign(value: (typeof TEXT_ALIGNS)[number]): void {
 }
 
 function commitButtonLabel(value: string): void {
+  const focusIds = getTextInputIds();
+  textInputFocusIds.value = [];
   const patches: Array<{ id: string; patch: Record<string, unknown> }> = [];
-  for (const n of selectedNodes.value) {
-    if (n.type !== "button") {
-      continue;
-    }
+  for (const id of focusIds) {
+    const f = findNode(props.project, id);
+    if (!f || f.node.type !== "button") continue;
     patches.push({
-      id: n.id,
-      patch: { label: { ...n.label, content: value } },
+      id,
+      patch: { label: { ...(f.node as import("../core/schema").ButtonNode).label, content: value } },
     });
   }
   pushPatches(patches, "按钮文字");
 }
 
 function commitButtonLabelFontSize(value: number): void {
+  const focusIds = getTextInputIds();
+  textInputFocusIds.value = [];
   const patches: Array<{ id: string; patch: Record<string, unknown> }> = [];
-  for (const n of selectedNodes.value) {
-    if (n.type !== "button") {
-      continue;
-    }
+  for (const id of focusIds) {
+    const f = findNode(props.project, id);
+    if (!f || f.node.type !== "button") continue;
     patches.push({
-      id: n.id,
-      patch: { label: { ...n.label, fontSize: value } },
+      id,
+      patch: { label: { ...(f.node as import("../core/schema").ButtonNode).label, fontSize: value } },
     });
   }
   pushPatches(patches, "按钮字号");
@@ -1383,6 +1519,7 @@ const pickerCurrentAssetId = computed((): string | null => {
             type="text"
             :value="commonString('name') ?? ''"
             :placeholder="multi ? '—' : ''"
+            @focus="onTextInputFocus"
             @change="
               (e) =>
                 commitName((e.target as HTMLInputElement).value)
@@ -1411,7 +1548,17 @@ const pickerCurrentAssetId = computed((): string | null => {
             :value="commonNumber(key) ?? ''"
             :placeholder="commonNumber(key) === null && !none ? '—' : ''"
             step="1"
-            @keydown="onNumberKeydown($event, key, commonNumber(key))"
+            @focus="onNumericFocus(key)"
+            @input="(e) => onNumericInputPreview(key, (e.target as HTMLInputElement).value)"
+            @keydown="
+              (e) => {
+                if (e.key === 'Escape') {
+                  onNumericEscape(key, e.target as HTMLInputElement);
+                } else {
+                  onNumberKeydown(e, key, commonNumber(key));
+                }
+              }
+            "
             @change="
               (e) =>
                 commitNumericField(key, Number((e.target as HTMLInputElement).value))
@@ -1464,6 +1611,7 @@ const pickerCurrentAssetId = computed((): string | null => {
             step="0.01"
             :value="commonOpacity() ?? ''"
             :placeholder="commonOpacity() === null && !none ? '—' : ''"
+            @focus="onTextInputFocus"
             @keydown="onOpacityKeydown($event, commonOpacity())"
             @change="
               (e) =>
@@ -1481,6 +1629,7 @@ const pickerCurrentAssetId = computed((): string | null => {
             class="properties__textarea"
             rows="2"
             :value="textNode?.content ?? ''"
+            @focus="onTextInputFocus"
             @change="
               (e) =>
                 commitTextContent((e.target as HTMLTextAreaElement).value)
@@ -1493,6 +1642,7 @@ const pickerCurrentAssetId = computed((): string | null => {
             class="properties__input properties__input--num"
             type="number"
             :value="textNode?.fontSize ?? ''"
+            @focus="onTextInputFocus"
             @change="
               (e) =>
                 commitTextFontSize(Number((e.target as HTMLInputElement).value))
@@ -1537,6 +1687,7 @@ const pickerCurrentAssetId = computed((): string | null => {
             class="properties__input"
             type="text"
             :value="buttonNode?.label.content ?? ''"
+            @focus="onTextInputFocus"
             @change="
               (e) =>
                 commitButtonLabel((e.target as HTMLInputElement).value)
@@ -1549,6 +1700,7 @@ const pickerCurrentAssetId = computed((): string | null => {
             class="properties__input properties__input--num"
             type="number"
             :value="buttonNode?.label.fontSize ?? ''"
+            @focus="onTextInputFocus"
             @change="
               (e) =>
                 commitButtonLabelFontSize(Number((e.target as HTMLInputElement).value))

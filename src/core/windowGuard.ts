@@ -1,5 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { message } from "@tauri-apps/plugin-dialog";
+import { ask, confirm, message } from "@tauri-apps/plugin-dialog";
 
 let dirty = false;
 let saveHandler: (() => Promise<void>) | null = null;
@@ -18,7 +18,7 @@ export function setCloseSaveHandler(handler: (() => Promise<void>) | null): void
 }
 
 /**
- * 拦截窗口关闭：dirty 时三按钮（保存 / 不保存 / 取消）。
+ * 拦截窗口关闭：dirty 时先询问是否关闭，再询问是否保存。
  * @returns 取消订阅函数
  */
 export async function initWindowGuard(): Promise<() => void> {
@@ -31,15 +31,26 @@ export async function initWindowGuard(): Promise<() => void> {
       return;
     }
     event.preventDefault();
-    const r = await message("有未保存的更改。关闭前是否保存？", {
+
+    // 第一步：确认是否真的要关闭（取消则停留）
+    const shouldClose = await confirm("有未保存的更改，确定要关闭吗？", {
       title: "LWB UI Editor",
       kind: "warning",
-      buttons: { yes: "保存", no: "不保存", cancel: "取消" },
+      okLabel: "关闭",
+      cancelLabel: "取消",
     });
-    if (r === "取消") {
+    if (!shouldClose) {
       return;
     }
-    if (r === "保存") {
+
+    // 第二步：询问是否保存
+    const shouldSave = await ask("是否在关闭前保存更改？", {
+      title: "LWB UI Editor",
+      kind: "warning",
+      okLabel: "保存",
+      cancelLabel: "不保存",
+    });
+    if (shouldSave) {
       if (!saveHandler) {
         await message("无法保存：未注册保存逻辑。", { title: "LWB UI Editor", kind: "error" });
         return;
@@ -50,7 +61,8 @@ export async function initWindowGuard(): Promise<() => void> {
         return;
       }
     }
+
     dirty = false;
-    await win.close();
+    await win.destroy();
   });
 }
