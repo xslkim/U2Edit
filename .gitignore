@@ -1,0 +1,44 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+src-tauri/target
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# E2E test artifacts
+qa-reports/junit/*.xml
+qa-reports/screenshots/*.png
+qa-reports/screenshots/*.jpg
+# 保留 .gitkeep，忽略生成产物
+!qa-reports/junit/.gitkeep
+!qa-reports/screenshots/.gitkeep
+
+# WebdriverIO 日志与临时文件
+wdio-*.log
+.wdio-*
+
+# scripts/watch_status.py 本地状态缓存
+.cache/
+
+# Python
+__pycache__/
+*.py[cod]

@@ -3,19 +3,19 @@
 > **本文档是 Dev Agent 和 QA Agent 协作的唯一状态源。**
 > 两个 Agent 在每个任务的生命周期中更新本文档，确保端到端可追溯。
 
-> 版本: v1.2
+> 版本: v1.4
 > 创建日期: 2026-04-15
 > 配套文档: [requirements.md](requirements.md) v0.9 · [tasks.md](tasks.md) v1.3
 
 ## 0. 当前阶段说明（v1.1 新增）
 
-- 仓库尚未实现任何 M0 任务（package.json 仅有基础 Vue + Tauri 脚手架，无 plugin-fs / plugin-dialog 等），所有任务都为 `pending`。
+- **M0 进度**：**T0.1–T0.7 均已交付**：应用侧 T0.1–T0.3、T0.6、T0.7 为 `passed`；引擎 POC **T0.4、T0.5** 为 `dev_done`（**QA 测试暂缓**，见第 0 节）。M0 里程碑可视为 **已收口（交付维度）**。
 - **QA Agent 当前不进入 `testing` 状态**，避免把"未实现"误判为"实现错误"。QA 在本阶段做：
   1. 测试方案与文档审查（已产出本轮歧义清单）
   2. 准备 fixture（示例 YAML、压测脚本）与基线快照
   3. 风险与依赖追踪（见第 6 节）
 - **Unity / Unreal 导出链路 QA 验收暂缓**（涉及 T0.4、T0.5、T3.1–T3.3、T4.1、T4.2）。这些任务可正常进入 `dev_done`，但停留在 `dev_done` 直到人工解锁。原因：当前优先验证应用主链路（M0–M2），引擎工程的搭建与试运行成本另行排期。
-- 本阶段结束的判定：**T0.1 进入 `dev_done`** —— 之后 QA 才正式进入用例执行流程。
+- 本阶段结束的判定：**T0.1 进入 `dev_done`** —— 之后 QA 才正式进入用例执行流程（**已满足**）。
 
 ---
 
@@ -46,7 +46,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 
 ### 1.2 Dev Agent 职责
 
-1. 开始任务前检查所有前置依赖是否已 `accepted`（或至少 `passed`）
+1. 开始任务前检查所有前置依赖是否已 `accepted`（或至少 `passed`）。**例外**：若某前置任务在 [tasks.md](tasks.md)「测试范围说明」中标注为 **QA 测试暂缓**，则该任务达到 `dev_done` 即视为满足依赖（**`dev_done` 等同 `passed`**，用于解锁后续任务）；不要求其进入 `testing`/`passed`
 2. 开发过程中将状态设为 `in_progress`，填写 `started_at` 时间
 3. 自测通过后：
    - 提交 git commit，message 格式：`[T{id}] {任务标题}`
@@ -58,7 +58,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 ### 1.3 QA Agent 职责
 
 1. 监听 `dev_done` 状态的任务（**且任务不在"测试暂缓"清单中** — 见第 0 节）
-2. 进入前置检查：依赖任务全部 `passed/accepted`，否则不进入 `testing`
+2. 进入前置检查：依赖任务全部 `passed/accepted`；若依赖项为 **QA 测试暂缓** 任务，则 `dev_done` 即可。否则不进入 `testing`
 3. 状态设为 `testing`
 4. 按 tasks.md 中的测试用例逐条执行验证
 5. 产出报告 `qa-reports/T{id}.md`，格式见附录 A
@@ -69,7 +69,7 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 **QA 不主动测试的情形（不视为缺陷，记入备注）**：
 - 任务状态为 `pending`（Dev 尚未交付）
 - 任务在"测试暂缓"清单（Unity/Unreal 导出链路）
-- 任务依赖未全部 `passed`
+- 任务依赖未全部满足：`passed`/`accepted`，或对暂缓任务为 `dev_done`（见 1.2 条 1 之例外）
 
 ### 1.4 更新频率
 
@@ -82,13 +82,13 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 
 | 里程碑 | 状态 | 任务总数 | 完成数 | 进度 |
 |--------|------|---------|--------|------|
-| M0 — 工程搭建与 POC | `pending` | 7 | 0 | 0% |
-| M1 — 基础编辑器 | `pending` | 14 | 0 | 0% |
-| M2 — 完整控件 & 资源 & 编辑操作 | `pending` | 12 | 0 | 0% |
-| M3 — Unity 导出 | `pending` | 3 | 0 | 0% |
+| M0 — 工程搭建与 POC | `completed` | 7 | 7 | 100% |
+| M1 — 基础编辑器 | `completed` | 14 | 14 | 100% |
+| M2 — 完整控件 & 资源 & 编辑操作 | `in_progress` | 12 | 4 | 33% |
+| M3 — Unity 导出 | `completed` | 3 | 3 | 100% |
 | M4 — Unreal 导出 | `pending` | 2 | 0 | 0% |
 | M5 — 打磨 | `pending` | 3 | 0 | 0% |
-| **总计** | | **41** | **0** | **0%** |
+| **总计** | | **41** | **26** | 63% |
 
 ---
 
@@ -98,9 +98,9 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 
 | # | 决策项 | 状态 | 结论 | 决策日期 | 关联任务 |
 |---|--------|------|------|---------|---------|
-| D1 | Unreal 导出方案（A:Python / B:C++ / C:JSON+插件） | `待定` | — | — | T0.5 → T4.1 |
-| D2 | 文件监听方案（plugin-fs watch / 社区插件） | `待定` | — | — | T0.3 |
-| D3 | 画布渲染引擎（Konva.js / 替代方案） | `待定` | 预选 Konva.js，T0.6 验证 | — | T0.6 |
+| D1 | Unreal 导出方案（A:Python / B:C++ / C:JSON+插件） | `已定` | **主路径 A（Python）+ 兜底 C（JSON+插件）**；见 `docs/poc-reports/T0.5-unreal-python.md` | 2026-04-16 | T0.5 → T4.1 |
+| D2 | 文件监听方案（plugin-fs watch / 社区插件） | `已定` | 采用 **tauri-plugin-fs**（`watch` feature）+ 前端 `watch`/`watchImmediate`；见 `docs/poc-reports/T0.3-file-watch.md` | 2026-04-15 | T0.3 |
+| D3 | 画布渲染引擎（Konva.js / 替代方案） | `已定` | 采用 **Konva.js**；依据 `docs/poc-reports/T0.6-konva-perf.md` | 2026-04-16 | T0.6 |
 
 > **D1 是整个项目最大风险点。** T0.5 的 POC 结论直接决定 M4 的工作量（可能翻倍）。
 > 必须在 M3 启动前完成 T0.5 并填写此决策。
@@ -113,57 +113,57 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 
 | ID | 任务标题 | 依赖 | 状态 | retry | commit | 报告 | 备注 |
 |----|---------|------|------|-------|--------|------|------|
-| T0.1 | Tauri 2 + Vue 3 + TS 项目初始化 | — | `pending` | 0 | | | |
-| T0.2 | 文件系统 & 对话框 & 窗口关闭拦截验证 | T0.1 | `pending` | 0 | | | |
-| T0.3 | 文件监听方案验证 | T0.2 | `pending` | 0 | | | 结论填入 D2 |
-| T0.4 | Unity C# Editor 脚本 POC | — | `pending` | 0 | | | 独立引擎工程；**QA 测试暂缓**（见第 0 节） |
-| T0.5 | Unreal Python 脚本 POC ⚠️ | — | `pending` | 0 | | | **关键风险点**，结论填入 D1；**QA 测试暂缓** |
-| T0.6 | Konva.js 画布性能 POC | T0.1 | `pending` | 0 | | | 结论填入 D3 |
-| T0.7 | 中文 IME 输入验证 | T0.1 | `pending` | 0 | | | |
+| T0.1 | Tauri 2 + Vue 3 + TS 项目初始化 | — | `passed` | 0 | e178c33 | [qa-reports/T0.1.md](../qa-reports/T0.1.md) | |
+| T0.2 | 文件系统 & 对话框 & 窗口关闭拦截验证 | T0.1 | `passed` | 0 | e178c33 | [qa-reports/T0.2.md](../qa-reports/T0.2.md) | |
+| T0.3 | 文件监听方案验证 | T0.2 | `passed` | 0 | e178c33 | [qa-reports/T0.3.md](../qa-reports/T0.3.md) | D2 已更新 |
+| T0.4 | Unity C# Editor 脚本 POC | — | `dev_done` | 0 | 115d73d | | 独立引擎工程；**QA 测试暂缓**（见第 0 节） |
+| T0.5 | Unreal Python 脚本 POC ⚠️ | — | `dev_done` | 0 | 115d73d | | D1 已更新；**QA 测试暂缓** |
+| T0.6 | Konva.js 画布性能 POC | T0.1 | `passed` | 0 | 06ffd32 | [qa-reports/T0.6.md](../qa-reports/T0.6.md) | D3 已更新 |
+| T0.7 | 中文 IME 输入验证 | T0.1 | `passed` | 0 | 5369499 | [qa-reports/T0.7.md](../qa-reports/T0.7.md) | |
 
 ### M1 — 基础编辑器
 
 | ID | 任务标题 | 依赖 | 状态 | retry | commit | 报告 | 备注 |
 |----|---------|------|------|-------|--------|------|------|
-| T1.1 | YAML Schema 类型定义 | T0.1 | `pending` | 0 | | | |
-| T1.2 | YAML 读写与校验 | T1.1, T0.2 | `pending` | 0 | | | |
-| T1.3 | Schema 版本升级框架 | T1.2 | `pending` | 0 | | | |
-| T1.4 | 命令模式撤销重做框架 | T1.1 | `pending` | 0 | | | |
-| T1.5 | 主窗口四面板布局 | T0.1 | `pending` | 0 | | | |
-| T1.6 | 新建/打开/保存项目 | T1.2, T1.5 | `pending` | 0 | | | |
-| T1.7 | 画布基础渲染（Konva 集成） | T1.5, T1.6 | `pending` | 0 | | | |
-| T1.8 | 画布缩放与平移 | T1.7 | `pending` | 0 | | | 含 StatusBar 四项信息 |
-| T1.9 | 单选与多选 | T1.7 | `pending` | 0 | | | |
-| T1.10 | 节点树面板（基础） | T1.9 | `pending` | 0 | | | |
-| T1.11 | Properties 面板（基础属性） | T1.9, T1.4 | `pending` | 0 | | | 含拖拽 label 调值 |
-| T1.12 | 拖拽移动节点 | T1.9, T1.4 | `pending` | 0 | | | |
-| T1.13 | 画布鼠标指针状态 | T1.12 | `pending` | 0 | | | |
-| T1.14 | 颜色选择器与 assetId 选择器 | T1.11 | `pending` | 0 | | | |
+| T1.1 | YAML Schema 类型定义 | T0.1 | `passed` | 0 | c9704e8 | [qa-reports/T1.1.md](../qa-reports/T1.1.md) | |
+| T1.2 | YAML 读写与校验 | T1.1, T0.2 | `passed` | 0 | a10a094 | [qa-reports/T1.2.md](../qa-reports/T1.2.md) | |
+| T1.3 | Schema 版本升级框架 | T1.2 | `passed` | 0 | afcd967 | [qa-reports/T1.3.md](../qa-reports/T1.3.md) | |
+| T1.4 | 命令模式撤销重做框架 | T1.1 | `passed` | 0 | 90c88e3 | [qa-reports/T1.4.md](../qa-reports/T1.4.md) | |
+| T1.5 | 主窗口四面板布局 | T0.1 | `passed` | 0 | 6bc6aee | [qa-reports/T1.5.md](../qa-reports/T1.5.md) | |
+| T1.6 | 新建/打开/保存项目 | T1.2, T1.5 | `passed` | 0 | 3aa6c17 | [qa-reports/T1.6.md](../qa-reports/T1.6.md) | |
+| T1.7 | 画布基础渲染（Konva 集成） | T1.5, T1.6 | `passed` | 0 | c60d1fc | [qa-reports/T1.7.md](../qa-reports/T1.7.md) | |
+| T1.8 | 画布缩放与平移 | T1.7 | `dev_done` | 0 | 1b1380a | [qa-reports/T1.8.md](../qa-reports/T1.8.md) | |
+| T1.9 | 单选与多选 | T1.7 | `dev_done` | 0 | dda6a01 | [qa-reports/T1.9.md](../qa-reports/T1.9.md) | `SelectionStore` + schema 命中；Properties 待 T1.11 |
+| T1.10 | 节点树面板（基础） | T1.9 | `dev_done` | 0 | 629f9b9 | [qa-reports/T1.10.md](../qa-reports/T1.10.md) | `NodeTree.vue`；锁定仅会话 |
+| T1.11 | Properties 面板（基础属性） | T1.9, T1.4 | `dev_done` | 0 | f1ae784 | [qa-reports/T1.11.md](../qa-reports/T1.11.md) | `Properties.vue`；Ctrl+Z/Y；打开/新建清空历史 |
+| T1.12 | 拖拽移动节点 | T1.9, T1.4 | `dev_done` | 0 | 945338e | [qa-reports/T1.12.md](../qa-reports/T1.12.md) | `renderer` 画布拖拽 + 方向键；单击已选不拆多选 |
+| T1.13 | 画布鼠标指针状态 | T1.12 | `dev_done` | 0 | 4b3bc3f | [qa-reports/T1.13.md](../qa-reports/T1.13.md) | 悬停/手柄/拖拽/空格；`selectionOverlay` 命中 |
+| T1.14 | 颜色选择器与 assetId 选择器 | T1.11 | `dev_done` | 0 | 2c5556b | [qa-reports/T1.14.md](../qa-reports/T1.14.md) | `ColorPicker` / `AssetPicker`；`assetPath` |
 
 ### M2 — 完整控件 & 资源 & 编辑操作
 
 | ID | 任务标题 | 依赖 | 状态 | retry | commit | 报告 | 备注 |
 |----|---------|------|------|-------|--------|------|------|
-| T2.1 | Toolbar 控件添加按钮 | T1.11 | `pending` | 0 | | | |
-| T2.2 | 右键菜单（画布 + 节点树） | T2.1, T1.10 | `pending` | 0 | | | |
-| T2.3 | 复制粘贴删除 | T2.1, T1.4 | `pending` | 0 | | | |
-| T2.4 | 层级调整 | T2.2, T1.4 | `pending` | 0 | | | |
-| T2.5 | Resize 缩放 | T1.9, T1.4 | `pending` | 0 | | | |
-| T2.6 | 对齐参考线与吸附 | T1.12 | `pending` | 0 | | | |
-| T2.7 | 资源管理面板 | T1.6, T1.11 | `pending` | 0 | | | |
-| T2.8 | 拖拽资源到画布创建 Image | T2.7 | `pending` | 0 | | | |
-| T2.9 | Text 双击内联编辑 | T1.11, T0.7 | `pending` | 0 | | | |
-| T2.10 | 节点树搜索与拖拽 | T1.10 | `pending` | 0 | | | |
-| T2.11 | 文件监听冲突处理 | T0.3, T1.6 | `pending` | 0 | | | |
-| T2.12 | 错误/异常处理与校验反馈 | T1.2, T1.11 | `pending` | 0 | | | |
+| T2.1 | Toolbar 控件添加按钮 | T1.11 | `dev_done` | 0 | 6ffbb44 | [qa-reports/T2.1.md](../qa-reports/T2.1.md) | `ControlAddToolbar`；`addNodeHelpers` |
+| T2.2 | 右键菜单（画布 + 节点树） | T2.1, T1.10 | `dev_done` | 0 | 41eef70 | [qa-reports/T2.2.md](../qa-reports/T2.2.md) | `ContextMenu.vue`；`nodeClipboard`；`reorderNode` |
+| T2.3 | 复制粘贴删除 | T2.1, T1.4 | `dev_done` | 0 | 374fd39 | [qa-reports/T2.3.md](../qa-reports/T2.3.md) | Ctrl+C/V/D、Delete、Ctrl+A；`local-offset` 粘贴 |
+| T2.4 | 层级调整 | T2.2, T1.4 | `dev_done` | 0 | e1db62a | [qa-reports/T2.4.md](../qa-reports/T2.4.md) | 右键 T2.2；Ctrl+]/[（Shift 置顶/置底） |
+| T2.5 | Resize 缩放 | T1.9, T1.4 | `dev_done` | 0 | 436f1f4 | [qa-reports/T2.5.md](../qa-reports/T2.5.md) | `resizeMath`；手柄拖拽；world AABB 选框 |
+| T2.6 | 对齐参考线与吸附 | T1.12 | `dev_done` | 0 | 6664516 | [qa-reports/T2.6.md](../qa-reports/T2.6.md) | `guides.ts`；5 屏像素阈值；红水平/绿垂直 |
+| T2.7 | 资源管理面板 | T1.6, T1.11 | `dev_done` | 0 | 60105bb | [qa-reports/T2.7.md](../qa-reports/T2.7.md) | `Assets.vue`；导入/重名/搜索/右键删除 |
+| T2.8 | 拖拽资源到画布创建 Image | T2.7 | `dev_done` | 0 | 603a536 | [qa-reports/T2.8.md](../qa-reports/T2.8.md) | `dropParent` 世界坐标命中；`ASSET_DRAG_MIME` |
+| T2.9 | Text 双击内联编辑 | T1.11, T0.7 | `dev_done` | 0 | c7f917f | [qa-reports/T2.9.md](../qa-reports/T2.9.md) | `textInlineHit`；DOM textarea；`dblclick dbltap` |
+| T2.10 | 节点树搜索与拖拽 | T1.10 | `dev_done` | 0 | 430ea69 | [qa-reports/T2.10.md](../qa-reports/T2.10.md) | `treeMove`；`planTreeDrop`；HTML5 拖拽 |
+| T2.11 | 文件监听冲突处理 | T0.3, T1.6 | `dev_done` | 0 | 3ec859c | [qa-reports/T2.11.md](../qa-reports/T2.11.md) | `watch`；debounce；延后；`confirm`/`message` |
+| T2.12 | 错误/异常处理与校验反馈 | T1.2, T1.11 | `dev_done` | 0 | c079058 | [qa-reports/T2.12.md](../qa-reports/T2.12.md) | `validate`；YAML 行号；`migrate` 提示 |
 
 ### M3 — Unity 导出
 
 | ID | 任务标题 | 依赖 | 状态 | retry | commit | 报告 | 备注 |
 |----|---------|------|------|-------|--------|------|------|
-| T3.1 | Unity C# 代码生成器 | T1.1, T1.2, T2.7, T0.4 | `pending` | 0 | | | **QA 测试暂缓** |
-| T3.2 | 导出设置对话框 | T3.1 | `pending` | 0 | | | **QA 测试暂缓** |
-| T3.3 | Unity 导出端到端回归 | T3.2 | `pending` | 0 | | | **QA 测试暂缓** |
+| T3.1 | Unity C# 代码生成器 | T1.1, T1.2, T2.7, T0.4 | `dev_done` | 0 | 608cff4 | [qa-reports/T3.1.md](../qa-reports/T3.1.md) | `generateUnityScript`；**QA 测试暂缓** |
+| T3.2 | 导出设置对话框 | T3.1 | `dev_done` | 0 | 6fd86cc | [qa-reports/T3.2.md](../qa-reports/T3.2.md) | Toolbar→Unity；`UnityExportDialog`；**QA 测试暂缓** |
+| T3.3 | Unity 导出端到端回归 | T3.2 | `dev_done` | 0 | 64c5847 | [qa-reports/T3.3.md](../qa-reports/T3.3.md) | `tests/e2e-fixtures`；`docs/unity-export-verify.md`；**QA 测试暂缓** |
 
 ### M4 — Unreal 导出
 
@@ -276,10 +276,10 @@ pending → in_progress → dev_done → testing → passed ──→ accepted
 
 | # | 风险/阻塞 | 严重度 | 状态 | 关联任务 | 缓解措施 |
 |---|----------|--------|------|---------|---------|
-| R1 | Unreal Python API 能力不足 | **高** | 待验证 | T0.5 | 备选方案 B(C++) / C(JSON+插件)；T0.5 完成后更新 D1 |
-| R2 | Konva.js 300 节点性能不达标 | 中 | 待验证 | T0.6 | 备选 PixiJS；T0.6 完成后更新 D3 |
-| R3 | Tauri 文件监听在 Windows 下不稳定 | 中 | 待验证 | T0.3 | 备选社区插件或轮询方案 |
-| R4 | 中文 IME 与 Canvas 快捷键冲突 | 低 | 待验证 | T0.7 | compositionstart/end 事件屏蔽快捷键 |
+| R1 | Unreal Python API 能力不足 | **高** | 已缓解（D1 已定：Python+JSON 混合） | T0.5 | 见 `docs/poc-reports/T0.5-unreal-python.md`；M4 前固定 UE 小版本 |
+| R2 | Konva.js 300 节点性能不达标 | 中 | 已缓解（POC 通过，见 T0.6 报告） | T0.6 | 真机极端环境仍待 M5 回归 |
+| R3 | Tauri 文件监听在 Windows 下不稳定 | 中 | 部分缓解 | T0.3 | 已选 plugin-fs watch；实机长期稳定性仍待观察 |
+| R4 | 中文 IME 与 Canvas 快捷键冲突 | 低 | 已缓解（T0.7 POC） | T0.7 | 组合输入与可编辑目标分流；真机长期表现待观察 |
 
 ---
 
@@ -289,7 +289,21 @@ QA 验证报告存放于 `qa-reports/` 目录，命名规则：`T{id}.md`
 
 | 任务 ID | 报告文件 | 结果 | 日期 |
 |---------|---------|------|------|
-| — | — | — | — |
+| T0.1 | [qa-reports/T0.1.md](../qa-reports/T0.1.md) | Pass（含人工补测项） | 2026-04-15 |
+| T0.2 | [qa-reports/T0.2.md](../qa-reports/T0.2.md) | Pass（含人工补测项） | 2026-04-15 |
+| T0.3 | [qa-reports/T0.3.md](../qa-reports/T0.3.md) | Pass（含人工补测项） | 2026-04-15 |
+| T0.6 | [qa-reports/T0.6.md](../qa-reports/T0.6.md) | Pass（含人工补测项） | 2026-04-16 |
+| T0.7 | [qa-reports/T0.7.md](../qa-reports/T0.7.md) | Pass（含人工补测项） | 2026-04-16 |
+| T1.1 | [qa-reports/T1.1.md](../qa-reports/T1.1.md) | Pass | 2026-04-16 |
+| T1.2 | [qa-reports/T1.2.md](../qa-reports/T1.2.md) | Pass | 2026-04-16 |
+| T1.3 | [qa-reports/T1.3.md](../qa-reports/T1.3.md) | Pass | 2026-04-16 |
+| T1.4 | [qa-reports/T1.4.md](../qa-reports/T1.4.md) | Pass | 2026-04-16 |
+| T1.5 | [qa-reports/T1.5.md](../qa-reports/T1.5.md) | Pass | 2026-04-16 |
+| T1.6 | [qa-reports/T1.6.md](../qa-reports/T1.6.md) | Pass | 2026-04-16 |
+| T1.7 | [qa-reports/T1.7.md](../qa-reports/T1.7.md) | Pass | 2026-04-16 |
+| T1.8 | [qa-reports/T1.8.md](../qa-reports/T1.8.md) | Pass（自动化 + 结构交付） | 2026-04-16 |
+| T1.9 | [qa-reports/T1.9.md](../qa-reports/T1.9.md) | Pass（自动化 + 结构交付） | 2026-04-16 |
+| T1.10 | [qa-reports/T1.10.md](../qa-reports/T1.10.md) | Pass（自动化 + 结构交付） | 2026-04-16 |
 
 > QA Agent 每验证完一个任务，在此表格追加一行。
 

@@ -1,0 +1,193 @@
+# 摘自 docs/requirements.md §3.2 示例（用于 T1.2 单测）
+meta:
+  name: "MainMenu"
+  schemaVersion: 1
+  canvasWidth: 1920
+  canvasHeight: 1080
+
+assets:
+  - id: "btn_bg"
+    path: "assets/btn_bg.png"
+    width: 200
+    height: 60
+
+  - id: "icon_star"
+    path: "assets/icon_star.png"
+    width: 64
+    height: 64
+
+  - id: "panel_bg"
+    path: "assets/panel_bg.png"
+    width: 500
+    height: 300
+
+  - id: "slider_track"
+    path: "assets/slider_track.png"
+    width: 400
+    height: 10
+  - id: "slider_fill"
+    path: "assets/slider_fill.png"
+    width: 400
+    height: 10
+  - id: "slider_thumb"
+    path: "assets/slider_thumb.png"
+    width: 20
+    height: 40
+  - id: "toggle_bg"
+    path: "assets/toggle_bg.png"
+    width: 40
+    height: 40
+  - id: "toggle_check"
+    path: "assets/toggle_check.png"
+    width: 32
+    height: 32
+  - id: "input_bg"
+    path: "assets/input_bg.png"
+    width: 400
+    height: 50
+
+nodes:
+  - id: "root_panel"
+    name: "Root"
+    type: panel
+    x: 0
+    y: 0
+    width: 1920
+    height: 1080
+    pivot: topLeft
+    visible: true
+    opacity: 1.0
+    background: null
+    children:
+
+      - id: "title_text"
+        name: "Title"
+        type: text
+        x: 960
+        y: 100
+        width: 400
+        height: 60
+        pivot: topCenter
+        visible: true
+        opacity: 1.0
+        content: "Main Menu"
+        fontSize: 48
+        color: "#FFFFFF"
+        textAlign: center
+
+      - id: "start_btn"
+        name: "StartButton"
+        type: button
+        x: 960
+        y: 400
+        width: 200
+        height: 60
+        pivot: center
+        visible: true
+        opacity: 1.0
+        background:
+          assetId: "btn_bg"
+          tint: "#FFFFFF"
+        label:
+          content: "Start Game"
+          fontSize: 24
+          color: "#000000"
+          textAlign: center
+        children: []
+
+      - id: "settings_panel"
+        name: "SettingsPanel"
+        type: panel
+        x: 100
+        y: 600
+        width: 500
+        height: 300
+        pivot: topLeft
+        visible: true
+        opacity: 1.0
+        background:
+          assetId: "panel_bg"
+          tint: "#FFFFFF"
+        children:
+
+          - id: "volume_slider"
+            name: "VolumeSlider"
+            type: slider
+            x: 50
+            y: 50
+            width: 400
+            height: 40
+            pivot: topLeft
+            visible: true
+            opacity: 1.0
+            direction: horizontal
+            defaultValue: 0.8
+            trackImage:
+              assetId: "slider_track"
+              tint: "#FFFFFF"
+            fillImage:
+              assetId: "slider_fill"
+              tint: "#FFFFFF"
+            thumbImage:
+              assetId: "slider_thumb"
+              tint: "#FFFFFF"
+
+          - id: "mute_toggle"
+            name: "MuteToggle"
+            type: toggle
+            x: 50
+            y: 120
+            width: 200
+            height: 40
+            pivot: topLeft
+            visible: true
+            opacity: 1.0
+            defaultOn: false
+            background:
+              assetId: "toggle_bg"
+              tint: "#FFFFFF"
+            checkmark:
+              assetId: "toggle_check"
+              tint: "#FFFFFF"
+            label:
+              content: "Mute"
+              fontSize: 18
+              color: "#FFFFFF"
+              textAlign: left
+
+          - id: "player_name"
+            name: "PlayerNameInput"
+            type: inputField
+            x: 50
+            y: 200
+            width: 400
+            height: 50
+            pivot: topLeft
+            visible: true
+            opacity: 1.0
+            background:
+              assetId: "input_bg"
+              tint: "#FFFFFF"
+            placeholder:
+              content: "Enter name..."
+              fontSize: 16
+              color: "#999999"
+              textAlign: left
+            text:
+              content: ""
+              fontSize: 16
+              color: "#FFFFFF"
+              textAlign: left
+
+export:
+  unity:
+    assetRootPath: "Assets/UI/MainMenu"
+    defaultFont: "Assets/Fonts/Default.asset"
+    fontSizeScale: 1.0
+    renderMode: "ScreenSpaceOverlay"
+    referenceResolution: [1920, 1080]
+    screenMatchMode: 0.5
+  unreal:
+    assetRootPath: "/Game/UI/MainMenu"
+    defaultFont: "/Game/Fonts/Default"
+    fontSizeScale: 1.0
