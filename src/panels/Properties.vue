@@ -293,12 +293,11 @@ function patchBackgroundAsset(
   if (id === null && !bg) {
     return { background: null };
   }
-  return {
-    background: {
-      assetId: id,
-      tint,
-    },
-  };
+  const result: Record<string, unknown> = { assetId: id, tint };
+  if (bg?.bgOpacity !== undefined) {
+    result.bgOpacity = bg.bgOpacity;
+  }
+  return { background: result };
 }
 
 function patchBackgroundTint(
@@ -307,12 +306,11 @@ function patchBackgroundTint(
 ): Record<string, unknown> {
   const bg = node.background;
   const assetId = bg?.assetId ?? null;
-  return {
-    background: {
-      assetId,
-      tint,
-    },
-  };
+  const result: Record<string, unknown> = { assetId, tint };
+  if (bg?.bgOpacity !== undefined) {
+    result.bgOpacity = bg.bgOpacity;
+  }
+  return { background: result };
 }
 
 function openPanelBgTint(anchor: HTMLElement): void {
@@ -341,6 +339,7 @@ function previewPanelBgTint(hex: string): void {
       pn.background = {
         assetId: bg?.assetId ?? null,
         tint: hex,
+        ...(bg?.bgOpacity !== undefined ? { bgOpacity: bg.bgOpacity } : {}),
       };
     }
   }
@@ -441,6 +440,49 @@ function commitPanelBgAsset(id: string | null): void {
   } else if (cmds.length > 1) {
     props.commitCommand(new CompositeCommand(cmds, "面板背景图"));
   }
+}
+
+// —— Panel borderRadius / bgOpacity ——
+
+function commonPanelBorderRadius(): number | null {
+  const ns = selectedNodes.value.filter((n): n is PanelNode => n.type === "panel");
+  if (ns.length === 0) return null;
+  const v0 = ns[0].borderRadius ?? 0;
+  return ns.every((n) => (n.borderRadius ?? 0) === v0) ? v0 : null;
+}
+
+function commitPanelBorderRadius(value: number): void {
+  const v = Math.max(0, Math.round(value));
+  const ids = selectedNodes.value.filter((n) => n.type === "panel").map((n) => n.id);
+  pushPatches(ids.map((id) => ({ id, patch: { borderRadius: v } })), "圆角");
+}
+
+function commonPanelBgOpacity(): number | null {
+  const ns = selectedNodes.value.filter((n): n is PanelNode => n.type === "panel");
+  if (ns.length === 0) return null;
+  const v0 = ns[0].background?.bgOpacity ?? 1.0;
+  return ns.every((n) => (n.background?.bgOpacity ?? 1.0) === v0) ? v0 : null;
+}
+
+function commitPanelBgOpacity(value: number): void {
+  const v = Math.min(1, Math.max(0, value));
+  const cmds: Command[] = [];
+  for (const n of selectedNodes.value) {
+    if (n.type !== "panel") continue;
+    const pn = n as PanelNode;
+    const bg = pn.background;
+    const snap = findNode(props.project, pn.id);
+    if (!snap) continue;
+    const before = structuredClone(snap.node);
+    const bgPatch: Record<string, unknown> = {
+      assetId: bg?.assetId ?? null,
+      tint: bg?.tint ?? "#FFFFFF",
+      bgOpacity: v,
+    };
+    cmds.push(new PatchNodeCommand(props.project, pn.id, { background: bgPatch }, "背景透明度", before));
+  }
+  if (cmds.length === 1) props.commitCommand(cmds[0]);
+  else if (cmds.length > 1) props.commitCommand(new CompositeCommand(cmds, "背景透明度"));
 }
 
 // —— Button background ——
@@ -1612,6 +1654,35 @@ const pickerCurrentAssetId = computed((): string | null => {
             @click="(e) => openPanelBgTint(e.currentTarget as HTMLElement)"
           />
         </div>
+        <label class="properties__row">
+          <span class="properties__label">bg.opacity</span>
+          <input
+            class="properties__input properties__input--num"
+            type="number"
+            min="0"
+            max="1"
+            step="0.01"
+            :value="commonPanelBgOpacity() ?? ''"
+            :placeholder="commonPanelBgOpacity() === null ? '—' : ''"
+            @change="
+              (e) => commitPanelBgOpacity(Number((e.target as HTMLInputElement).value))
+            "
+          />
+        </label>
+        <label class="properties__row">
+          <span class="properties__label">圆角</span>
+          <input
+            class="properties__input properties__input--num"
+            type="number"
+            min="0"
+            step="1"
+            :value="commonPanelBorderRadius() ?? ''"
+            :placeholder="commonPanelBorderRadius() === null ? '—' : ''"
+            @change="
+              (e) => commitPanelBorderRadius(Number((e.target as HTMLInputElement).value))
+            "
+          />
+        </label>
       </section>
 
       <section v-if="sameType === 'slider'" class="properties__sec">

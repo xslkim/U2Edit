@@ -379,22 +379,56 @@ function renderPanelLike(
 
   const shell = new Konva.Group({ opacity: n.opacity });
   const bgRef = n.background;
-  const abs = resolveAssetAbsolute(project, projectDir, bgRef?.assetId ?? null);
-  if (bgRef?.assetId && abs) {
-    const img = imgMap.get(abs);
-    if (img) {
-      const ig = new Konva.Group();
-      ig.add(
-        new Konva.Image({
-          image: img,
+  if (bgRef) {
+    const radius = (n as PanelNode).borderRadius ?? 0;
+    const bgOpacity = bgRef.bgOpacity ?? 1.0;
+    const abs = resolveAssetAbsolute(project, projectDir, bgRef.assetId);
+    if (bgRef.assetId && abs) {
+      const img = imgMap.get(abs);
+      if (img) {
+        const ig = new Konva.Group({ opacity: bgOpacity });
+        if (radius > 0) {
+          const r = radius;
+          const w = n.width;
+          const h = n.height;
+          ig.clipFunc((ctx) => {
+            ctx.beginPath();
+            ctx.moveTo(r, 0);
+            ctx.lineTo(w - r, 0);
+            ctx.arc(w - r, r, r, -Math.PI / 2, 0);
+            ctx.lineTo(w, h - r);
+            ctx.arc(w - r, h - r, r, 0, Math.PI / 2);
+            ctx.lineTo(r, h);
+            ctx.arc(r, h - r, r, Math.PI / 2, Math.PI);
+            ctx.lineTo(0, r);
+            ctx.arc(r, r, r, Math.PI, -Math.PI / 2);
+            ctx.closePath();
+          });
+        }
+        ig.add(
+          new Konva.Image({
+            image: img,
+            width: n.width,
+            height: n.height,
+          }),
+        );
+        applyTintOverlay(ig, n.width, n.height, bgRef.tint ?? "#FFFFFF");
+        shell.add(ig);
+      } else {
+        shell.add(missingPlaceholder(n.width, n.height, `Missing: ${basename(abs)}`));
+      }
+    } else if (!bgRef.assetId) {
+      // assetId 为 null 时，用 tint 作为纯色填充背景
+      shell.add(
+        new Konva.Rect({
           width: n.width,
           height: n.height,
+          fill: bgRef.tint ?? "#FFFFFF",
+          cornerRadius: radius,
+          opacity: bgOpacity,
+          listening: false,
         }),
       );
-      applyTintOverlay(ig, n.width, n.height, bgRef.tint ?? "#FFFFFF");
-      shell.add(ig);
-    } else {
-      shell.add(missingPlaceholder(n.width, n.height, `Missing: ${basename(abs)}`));
     }
   }
 

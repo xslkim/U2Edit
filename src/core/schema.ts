@@ -30,6 +30,8 @@ export interface AssetTintRef {
   assetId: string | null;
   /** 默认 `#FFFFFF` */
   tint: string;
+  /** 背景层自身透明度，0.0–1.0，默认 1.0；不影响子节点 */
+  bgOpacity?: number;
 }
 
 export interface TextLabelStyle {
@@ -103,12 +105,16 @@ export interface ButtonNode extends BaseNode {
   type: "button";
   background: AssetTintRef | null;
   label: TextLabelStyle;
+  /** 背景圆角半径（px），默认 0 */
+  borderRadius?: number;
   children: Node[];
 }
 
 export interface PanelNode extends BaseNode {
   type: "panel";
   background: AssetTintRef | null;
+  /** 背景圆角半径（px），默认 0 */
+  borderRadius?: number;
   children: Node[];
 }
 
