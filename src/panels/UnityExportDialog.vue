@@ -128,8 +128,7 @@ async function runExport(): Promise<void> {
   await saveProject(props.projectDir, props.project);
   emit("persisted");
 
-  const sourceAssetsAbs = joinProjectPath(props.projectDir, "assets");
-  const cs = generateUnityScript(props.project, props.project.export, sourceAssetsAbs);
+  const cs = generateUnityScript(props.project, props.project.export, props.projectDir);
   await fileService.writeText(target, cs);
 
   successPath.value = target;

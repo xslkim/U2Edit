@@ -92,7 +92,7 @@ using TMPro;
 
 namespace LwbUiGenerated {
   public static class LwbUiImport_${sanitizeMenuSuffix(project.meta.name)} {
-    const string SourceAssetsAbs = ${sourceLit};
+    const string SourceProjectDir = ${sourceLit};
     const string AssetRootUnity = ${assetRoot};
     const string DefaultFontAssetPath = ${defaultFont};
     const float FontSizeScale = ${u.fontSizeScale}f;
@@ -143,7 +143,7 @@ ${indentLines(treeBlock, 8)}
       rt.anchorMin = new Vector2(0f, 1f);
       rt.anchorMax = new Vector2(0f, 1f);
       rt.pivot = pivot;
-      rt.sizeDelta = new Vector2(w, -h);
+      rt.sizeDelta = new Vector2(w, h);
       rt.anchoredPosition = new Vector2(px, -py);
     }
 
@@ -157,11 +157,15 @@ ${indentLines(treeBlock, 8)}
     }
 
     static TMP_FontAsset LwbLoadFont() {
-      var f = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(DefaultFontAssetPath);
-      if (f == null) {
-        Debug.LogWarning("LWB UI: 未找到 defaultFont，TMP 可能无法显示文字。路径: " + DefaultFontAssetPath);
+      if (!string.IsNullOrEmpty(DefaultFontAssetPath)) {
+        var f = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(DefaultFontAssetPath);
+        if (f != null) return f;
+        Debug.LogWarning("LWB UI: 未找到指定字体，将回退到 TMP 默认字体。路径: " + DefaultFontAssetPath);
       }
-      return f;
+      var def = TMP_Settings.defaultFontAsset;
+      if (def != null) return def;
+      Debug.LogWarning("LWB UI: TMP 默认字体也未找到，文字可能无法显示。请检查 TMP Essentials 是否已导入。");
+      return null;
     }
 
     static Sprite LwbLoadSprite(string assetId) {
@@ -170,6 +174,27 @@ ${indentLines(treeBlock, 8)}
       if (rel == null) return null;
       var unityPath = Path.Combine(AssetRootUnity, rel)${csharpPathNormalizeExpr()};
       return AssetDatabase.LoadAssetAtPath<Sprite>(unityPath);
+    }
+
+    static Sprite LwbMakeRoundedSprite(float radius) {
+      int r = Mathf.Max(1, Mathf.RoundToInt(radius));
+      int sz = r * 2 + 2;
+      var tex = new Texture2D(sz, sz, TextureFormat.RGBA32, false);
+      var px = new Color32[sz * sz];
+      float threshold = (r + 0.5f) * (r + 0.5f);
+      for (int y = 0; y < sz; y++) {
+        for (int x = 0; x < sz; x++) {
+          float nx = x < r ? r - x : (x > r ? x - r - 1 : 0);
+          float ny = y < r ? r - y : (y > r ? y - r - 1 : 0);
+          px[y * sz + x] = nx * nx + ny * ny <= threshold
+            ? new Color32(255, 255, 255, 255) : default;
+        }
+      }
+      tex.SetPixels32(px);
+      tex.Apply();
+      float b = r;
+      return Sprite.Create(tex, new Rect(0, 0, sz, sz), new Vector2(0.5f, 0.5f),
+        100f, 0, SpriteMeshType.FullRect, new Vector4(b, b, b, b));
     }
 
     static string LwbAssetRelPath(string assetId) {
@@ -210,8 +235,9 @@ function emitLwbCopyOneStaticMethod(): string {
 
 function emitRunCopyAssetsBody(project: Project, sourceAbsExpr: string, assetRootExpr: string): string {
   const lines: string[] = [
-    `if (!Directory.Exists(SourceAssetsAbs)) {`,
-    `  throw new DirectoryNotFoundException("找不到项目资源目录: " + SourceAssetsAbs);`,
+    `var _srcAssetsDir = Path.Combine(SourceProjectDir, "assets");`,
+    `if (!Directory.Exists(_srcAssetsDir)) {`,
+    `  throw new DirectoryNotFoundException("找不到项目 assets 目录: " + _srcAssetsDir);`,
     `}`,
     `if (!Directory.Exists(AssetRootUnity)) {`,
     `  Directory.CreateDirectory(AssetRootUnity);`,
@@ -312,14 +338,32 @@ function emitPanel(
 ): string[] {
   const lines: string[] = [];
   const bg = node.background;
-  if (bg?.assetId) {
-    lines.push(`${pad}{`);
-    lines.push(`${pad}  var img = ${goVar}.AddComponent<Image>();`);
+  if (!bg) return lines;
+
+  const radius = node.borderRadius ?? 0;
+  const bgOpacity = bg.bgOpacity ?? 1.0;
+  const alpha = +Math.min(1, Math.max(0, opacity * bgOpacity)).toFixed(4);
+  const tint = bg.tint ?? "#FFFFFF";
+
+  lines.push(`${pad}{`);
+  lines.push(`${pad}  var img = ${goVar}.AddComponent<Image>();`);
+
+  if (bg.assetId) {
     lines.push(`${pad}  var sp = LwbLoadSprite(${csStringLiteral(bg.assetId)});`);
     lines.push(`${pad}  if (sp != null) img.sprite = sp;`);
-    lines.push(`${pad}  img.color = LwbColor(${csStringLiteral(bg.tint ?? "#FFFFFF")}, ${opacity}f);`);
-    lines.push(`${pad}}`);
+    if (radius > 0) {
+      lines.push(`${pad}  // Note: borderRadius=${radius} not clipped for image backgrounds`);
+    }
+  } else {
+    // 纯色背景：radius>0 时用程序化圆角贴图做 9-slice
+    if (radius > 0) {
+      lines.push(`${pad}  img.sprite = LwbMakeRoundedSprite(${radius}f);`);
+      lines.push(`${pad}  img.type = Image.Type.Sliced;`);
+    }
   }
+
+  lines.push(`${pad}  img.color = LwbColor(${csStringLiteral(tint)}, ${alpha}f);`);
+  lines.push(`${pad}}`);
   return lines;
 }
 
