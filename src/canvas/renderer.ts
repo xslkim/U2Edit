@@ -1,4 +1,5 @@
 import Konva from "konva";
+import { toRaw } from "vue";
 import { resolveAssetAbsolute } from "../core/assetPath";
 import { worldTopLeftOfNode } from "../core/addNodeHelpers";
 import type { Command } from "../core/history";
@@ -819,7 +820,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
         resetNodeDrag();
         return;
       }
-      nodeDragSnapshots.set(id, structuredClone(f.node));
+      nodeDragSnapshots.set(id, structuredClone(toRaw(f.node)));
     }
     nodeDragPending = true;
     nodeDragActive = false;
@@ -890,7 +891,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
     resetNodeDrag();
     resetResize();
     textInlineNodeId = nodeId;
-    textInlineBefore = structuredClone(f.node);
+    textInlineBefore = structuredClone(toRaw(f.node));
     const n = f.node;
     const ta = document.createElement("textarea");
     ta.value = n.content;
@@ -1180,7 +1181,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
             resizeActive = true;
             resizeNodeId = targetId;
             resizeHandle = rh.handle;
-            resizeSnapshot = structuredClone(f.node);
+            resizeSnapshot = structuredClone(toRaw(f.node));
             const tl = worldTopLeftOfNode(project, targetId);
             resizeStartWorldBox = {
               x: tl.x,
@@ -1605,7 +1606,7 @@ export function mountProjectCanvas(opts: MountProjectCanvasOptions): MountedCanv
               if (!f) {
                 continue;
               }
-              const snap = structuredClone(f.node);
+              const snap = structuredClone(toRaw(f.node));
               cmds.push(
                 new PatchNodeCommand(
                   project,

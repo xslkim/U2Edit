@@ -1,3 +1,4 @@
+import { toRaw } from "vue";
 import { maxSuffixForType, placementTopLeftInParent } from "./addNodeHelpers";
 import {
   AddNodeCommand,
@@ -61,7 +62,7 @@ export function copyRootsFromSelection(project: Project, selected: ReadonlySet<s
   return ids
     .map((id) => {
       const f = findNode(project, id);
-      return f ? structuredClone(f.node) : null;
+      return f ? structuredClone(toRaw(f.node)) : null;
     })
     .filter((n): n is Node => n !== null);
 }
@@ -70,7 +71,7 @@ export function copyRootsFromSelection(project: Project, selected: ReadonlySet<s
  * 为粘贴生成新 id（整棵子树）；先按旧 id 抬升各类型 max，再前序分配新 id。
  */
 export function remappedCloneRoots(project: Project, roots: Node[]): Node[] {
-  const clones = roots.map((r) => structuredClone(r));
+  const clones = roots.map((r) => structuredClone(toRaw(r)));
   const max = new Map<NodeType, number>();
   for (const t of NODE_TYPES) {
     max.set(t, maxSuffixForType(project, t));

@@ -165,7 +165,11 @@ function parseAssetTintRef(raw: unknown, ctx: string): AssetTintRef | null {
   const assetId =
     raw.assetId === null || raw.assetId === undefined ? null : String(raw.assetId);
   const tint = typeof raw.tint === "string" ? raw.tint : "#FFFFFF";
-  return { assetId, tint };
+  const ref: AssetTintRef = { assetId, tint };
+  if (typeof raw.bgOpacity === "number" && !Number.isNaN(raw.bgOpacity)) {
+    ref.bgOpacity = raw.bgOpacity;
+  }
+  return ref;
 }
 
 function parseBaseNode(raw: Record<string, unknown>, ctx: string) {
@@ -220,6 +224,9 @@ function parseNode(raw: unknown, ctx: string): Node {
         label: parseTextLabel(raw.label, `${ctx}.label`),
         children: ch.map((c, i) => parseNode(c, `${ctx}.children[${i}]`)),
       };
+      if (typeof raw.borderRadius === "number" && !Number.isNaN(raw.borderRadius)) {
+        n.borderRadius = raw.borderRadius;
+      }
       return n;
     }
     case "panel": {
@@ -233,6 +240,9 @@ function parseNode(raw: unknown, ctx: string): Node {
         background: parseAssetTintRef(raw.background, `${ctx}.background`),
         children: ch.map((c, i) => parseNode(c, `${ctx}.children[${i}]`)),
       };
+      if (typeof raw.borderRadius === "number" && !Number.isNaN(raw.borderRadius)) {
+        n.borderRadius = raw.borderRadius;
+      }
       return n;
     }
     case "slider": {

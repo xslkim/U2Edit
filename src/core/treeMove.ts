@@ -1,3 +1,4 @@
+import { toRaw } from "vue";
 import type { Command } from "./history";
 import {
   AddNodeCommand,
@@ -144,7 +145,7 @@ export function buildMoveNodeCommand(
     return null;
   }
 
-  const snap = structuredClone(moved.node);
+  const snap = structuredClone(toRaw(moved.node));
   return new CompositeCommand(
     [
       new RemoveNodeCommand(project, movedId, `${label}-remove`),

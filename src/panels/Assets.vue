@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ask, message } from "@tauri-apps/plugin-dialog";
 import { readFile, remove } from "@tauri-apps/plugin-fs";
-import { computed, onUnmounted, ref, watch } from "vue";
+import { computed, onUnmounted, ref, toRaw, watch } from "vue";
 import {
   copyImageIntoAssets,
   fileBasename,
@@ -150,7 +150,7 @@ async function importOneFile(srcAbs: string): Promise<void> {
       await copyImageIntoAssets(srcAbs, targetAbs);
       const dim = await getImageDimensions(targetAbs);
       if (yamlEntry) {
-        const before = structuredClone(yamlEntry);
+        const before = structuredClone(toRaw(yamlEntry));
         props.commitCommand(
           new PatchAssetCommand(
             props.project,

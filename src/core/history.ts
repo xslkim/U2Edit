@@ -1,3 +1,4 @@
+import { toRaw } from "vue";
 import type { AssetRef, Node, PanelNode, Project } from "./schema";
 
 /** 仅 button 与 panel 带子节点 */
@@ -161,7 +162,7 @@ export class PatchNodeCommand implements Command {
     if (!f) {
       throw new Error(`PatchNodeCommand: 找不到节点 ${nodeId}`);
     }
-    this.before = beforeSnapshot ? structuredClone(beforeSnapshot) : structuredClone(f.node);
+    this.before = beforeSnapshot ? structuredClone(toRaw(beforeSnapshot)) : structuredClone(toRaw(f.node));
   }
 
   do(): void {
@@ -217,7 +218,7 @@ export class AddNodeCommand implements Command {
 
   do(): void {
     const list = getChildList(this.project, this.parentId);
-    list.splice(this.index, 0, structuredClone(this.node));
+    list.splice(this.index, 0, structuredClone(toRaw(this.node)));
   }
 
   undo(): void {
@@ -243,7 +244,7 @@ export class RemoveNodeCommand implements Command {
     if (!f) {
       throw new Error(`RemoveNodeCommand: 找不到节点 ${nodeId}`);
     }
-    this.snapshot = structuredClone(f.node);
+    this.snapshot = structuredClone(toRaw(f.node));
     this.parentId = f.parent ? f.parent.id : null;
     this.index = f.index;
   }
@@ -292,7 +293,7 @@ export class AddAssetCommand implements Command {
   ) {}
 
   do(): void {
-    this.project.assets.splice(this.index, 0, structuredClone(this.asset));
+    this.project.assets.splice(this.index, 0, structuredClone(toRaw(this.asset)));
   }
 
   undo(): void {
@@ -317,7 +318,7 @@ export class RemoveAssetCommand implements Command {
       throw new Error(`RemoveAssetCommand: 找不到资源 ${assetId}`);
     }
     this.index = i;
-    this.snapshot = structuredClone(project.assets[i]);
+    this.snapshot = structuredClone(toRaw(project.assets[i]));
   }
 
   do(): void {
@@ -348,7 +349,7 @@ export class PatchAssetCommand implements Command {
     if (i < 0) {
       throw new Error(`PatchAssetCommand: 找不到资源 ${assetId}`);
     }
-    this.before = beforeSnapshot ? structuredClone(beforeSnapshot) : structuredClone(project.assets[i]);
+    this.before = beforeSnapshot ? structuredClone(toRaw(beforeSnapshot)) : structuredClone(toRaw(project.assets[i]));
   }
 
   do(): void {

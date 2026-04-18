@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from "vue";
+import { computed, onUnmounted, ref, toRaw, watch } from "vue";
 import type { Command } from "../core/history";
 import { CompositeCommand, findNode, PatchNodeCommand } from "../core/history";
 import type {
@@ -72,7 +72,7 @@ function snapshotNodesForIds(ids: string[]): Map<string, Node> {
   for (const id of ids) {
     const f = findNode(props.project, id);
     if (f) {
-      m.set(id, structuredClone(f.node));
+      m.set(id, structuredClone(toRaw(f.node)));
     }
   }
   return m;
@@ -473,7 +473,7 @@ function commitPanelBgOpacity(value: number): void {
     const bg = pn.background;
     const snap = findNode(props.project, pn.id);
     if (!snap) continue;
-    const before = structuredClone(snap.node);
+    const before = structuredClone(toRaw(snap.node));
     const bgPatch: Record<string, unknown> = {
       assetId: bg?.assetId ?? null,
       tint: bg?.tint ?? "#FFFFFF",
@@ -889,7 +889,7 @@ function onNumericFocus(key: NumericKey): void {
   for (const id of ids) {
     const f = findNode(props.project, id);
     if (f) {
-      beforeById.set(id, structuredClone(f.node));
+      beforeById.set(id, structuredClone(toRaw(f.node)));
     }
   }
   numericSession.value = { key, ids, beforeById, lastValue: null };
@@ -907,7 +907,7 @@ function onNumericInputPreview(key: NumericKey, rawValue: string): void {
   }
   const cur = numericSession.value!;
   cur.lastValue = n;
-  // 就地修改，触发实时预览（不写历史）
+  // 就地修改节点并请求画布重绘（不写历史）。
   for (const id of cur.ids) {
     const f = findNode(props.project, id);
     if (f) {
@@ -1264,7 +1264,7 @@ function onIdBlur(): void {
   idError.value = false;
   const oldId = node.id;
   props.commitCommand(
-    new PatchNodeCommand(props.project, oldId, { id: raw }, "重命名 id", structuredClone(node)),
+    new PatchNodeCommand(props.project, oldId, { id: raw }, "重命名 id", structuredClone(toRaw(node))),
   );
   // 更新选中状态到新 id，否则后续属性编辑会因找不到旧 id 而失效
   props.selection.selectOnly(raw);
@@ -1317,7 +1317,7 @@ function startDrag(
   dragLastClientX = e.clientX;
   const m = new Map<string, Node>();
   for (const n of selectedNodes.value) {
-    m.set(n.id, structuredClone(n));
+    m.set(n.id, structuredClone(toRaw(n)));
   }
   dragBeforeById.value = m;
   document.body.style.cursor = "ew-resize";

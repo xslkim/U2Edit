@@ -1,3 +1,4 @@
+import { toRaw } from "vue";
 import {
   CompositeCommand,
   findNode,
@@ -164,7 +165,7 @@ export function makeRemoveAssetWithRefClearsCommand(project: Project, assetId: s
     if (!f) {
       continue;
     }
-    cmds.push(new PatchNodeCommand(project, nodeId, patch, "清除资源引用", structuredClone(f.node)));
+    cmds.push(new PatchNodeCommand(project, nodeId, patch, "清除资源引用", structuredClone(toRaw(f.node))));
   }
   cmds.push(new RemoveAssetCommand(project, assetId, "删除资源"));
   if (cmds.length === 1) {
