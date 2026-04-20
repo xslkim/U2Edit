@@ -11,16 +11,28 @@
 
 ## 开发
 
+### 桌面端（开发模式）
+
+在项目根目录执行：
+
 ```bash
 pnpm install
 pnpm tauri dev
 ```
 
-前端单独调试（无桌面壳）：
+- 会启动 **Vite 开发服务器**并拉起 **Tauri 桌面窗口**（WebView2），前端热更新一般会自动刷新界面。
+- 首次运行会编译 Rust 侧，耗时可能较长；后续仅改前端时通常较快。
+- 需满足上文「环境要求」（Node、pnpm、Rust、Windows 下 C++ 构建工具等）。
+
+### 仅前端（浏览器，无桌面壳）
+
+不启动 Tauri，只在浏览器里调 UI：
 
 ```bash
 pnpm dev
 ```
+
+桌面相关 API（`@tauri-apps/api` 等）在纯浏览器模式下可能不可用或行为不同，完整功能请以 `pnpm tauri dev` 为准。
 
 ## 构建安装包
 
