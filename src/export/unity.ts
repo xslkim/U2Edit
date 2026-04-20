@@ -173,11 +173,20 @@ ${indentLines(treeBlock, 8)}
       var rel = LwbAssetRelPath(assetId);
       if (rel == null) return null;
       var unityPath = Path.Combine(AssetRootUnity, rel)${csharpPathNormalizeExpr()};
-      return AssetDatabase.LoadAssetAtPath<Sprite>(unityPath);
+      var sp = AssetDatabase.LoadAssetAtPath<Sprite>(unityPath);
+      if (sp != null) return sp;
+      foreach (var a in AssetDatabase.LoadAllAssetsAtPath(unityPath)) {
+        if (a is Sprite s) return s;
+      }
+      Debug.LogWarning("LWB UI: 未找到 Sprite，请检查资产路径: " + unityPath);
+      return null;
     }
 
     static Sprite LwbMakeRoundedSprite(float radius) {
       int r = Mathf.Max(1, Mathf.RoundToInt(radius));
+      var assetPath = AssetRootUnity + "/assets/rounded_r" + r + ".png";
+      var existing = AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
+      if (existing != null) return existing;
       int sz = r * 2 + 2;
       var tex = new Texture2D(sz, sz, TextureFormat.RGBA32, false);
       var px = new Color32[sz * sz];
@@ -192,9 +201,23 @@ ${indentLines(treeBlock, 8)}
       }
       tex.SetPixels32(px);
       tex.Apply();
-      float b = r;
-      return Sprite.Create(tex, new Rect(0, 0, sz, sz), new Vector2(0.5f, 0.5f),
-        100f, 0, SpriteMeshType.FullRect, new Vector4(b, b, b, b));
+      var projectRoot = Path.GetDirectoryName(Application.dataPath);
+      var absPath = Path.GetFullPath(Path.Combine(projectRoot, assetPath));
+      var absDir = Path.GetDirectoryName(absPath);
+      if (!string.IsNullOrEmpty(absDir) && !Directory.Exists(absDir)) Directory.CreateDirectory(absDir);
+      File.WriteAllBytes(absPath, tex.EncodeToPNG());
+      UnityEngine.Object.DestroyImmediate(tex);
+      AssetDatabase.ImportAsset(assetPath);
+      var ti = AssetImporter.GetAtPath(assetPath) as TextureImporter;
+      if (ti != null) {
+        ti.textureType = TextureImporterType.Sprite;
+        ti.spriteImportMode = SpriteImportMode.Single;
+        ti.spriteBorder = new Vector4(r, r, r, r);
+        ti.SaveAndReimport();
+      }
+      var sp = AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
+      if (sp == null) Debug.LogWarning("LWB UI: 未能加载圆角 Sprite: " + assetPath);
+      return sp;
     }
 
     static string LwbAssetRelPath(string assetId) {
@@ -223,31 +246,34 @@ function indentLines(s: string, spaces: number): string {
 }
 
 function emitLwbCopyOneStaticMethod(): string {
-  const norm = csharpPathNormalizeExpr();
   return `    static void LwbCopyOne(string srcRoot, string dstRoot, string rel) {
-      var from = Path.Combine(srcRoot, rel)${norm};
-      var to = Path.Combine(dstRoot, rel)${norm};
-      var dir = Path.GetDirectoryName(to);
+      var from = Path.GetFullPath(Path.Combine(srcRoot, rel));
+      var to   = Path.GetFullPath(Path.Combine(dstRoot, rel));
+      var dir  = Path.GetDirectoryName(to);
       if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-      if (File.Exists(from)) File.Copy(from, to, true);
+      if (!File.Exists(from)) {
+        Debug.LogWarning("LWB UI: 资产文件未找到，已跳过: " + from);
+        return;
+      }
+      File.Copy(from, to, true);
     }`;
 }
 
-function emitRunCopyAssetsBody(project: Project, sourceAbsExpr: string, assetRootExpr: string): string {
+function emitRunCopyAssetsBody(project: Project, sourceAbsExpr: string, _assetRootExpr: string): string {
   const lines: string[] = [
-    `var _srcAssetsDir = Path.Combine(SourceProjectDir, "assets");`,
+    `var _srcAssetsDir = Path.GetFullPath(Path.Combine(SourceProjectDir, "assets"));`,
     `if (!Directory.Exists(_srcAssetsDir)) {`,
     `  throw new DirectoryNotFoundException("找不到项目 assets 目录: " + _srcAssetsDir);`,
     `}`,
-    `if (!Directory.Exists(AssetRootUnity)) {`,
-    `  Directory.CreateDirectory(AssetRootUnity);`,
+    `var _projectRoot  = Path.GetDirectoryName(Application.dataPath);`,
+    `var _assetRootAbs = Path.GetFullPath(Path.Combine(_projectRoot, AssetRootUnity));`,
+    `if (!Directory.Exists(_assetRootAbs)) {`,
+    `  Directory.CreateDirectory(_assetRootAbs);`,
     `}`,
   ];
   for (const a of project.assets) {
     const rel = a.path.replace(/^[/\\]+/, "").replace(/\\/g, "/");
-    lines.push(
-      `LwbCopyOne(${sourceAbsExpr}, ${assetRootExpr}, ${csStringLiteral(rel)});`,
-    );
+    lines.push(`LwbCopyOne(${sourceAbsExpr}, _assetRootAbs, ${csStringLiteral(rel)});`);
   }
   lines.push(`AssetDatabase.Refresh();`);
   lines.push(
@@ -255,7 +281,11 @@ function emitRunCopyAssetsBody(project: Project, sourceAbsExpr: string, assetRoo
     `  var p = AssetDatabase.GUIDToAssetPath(guid);`,
     `  if (!p.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) continue;`,
     `  var ti = AssetImporter.GetAtPath(p) as TextureImporter;`,
-    `  if (ti != null) { ti.textureType = TextureImporterType.Sprite; ti.SaveAndReimport(); }`,
+    `  if (ti != null) {`,
+    `    ti.textureType = TextureImporterType.Sprite;`,
+    `    ti.spriteImportMode = SpriteImportMode.Single;`,
+    `    ti.SaveAndReimport();`,
+    `  }`,
     `}`,
   );
   return lines.join("\n        ");

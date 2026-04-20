@@ -5,6 +5,7 @@ import T06KonvaPerfPoc from "./poc/T06KonvaPerfPoc.vue";
 import T07KonvaImePoc from "./poc/T07KonvaImePoc.vue";
 import * as fileService from "./core/fileService";
 import * as fileWatcher from "./core/fileWatcher";
+import * as appPrefs from "./core/appPrefs";
 import {
   createBlankProject,
   formatValidationErrors,
@@ -725,7 +726,7 @@ async function onSaveProject(): Promise<void> {
 }
 
 async function onOpenProject(): Promise<void> {
-  const dir = await fileService.pickDirectory();
+  const dir = await fileService.pickDirectory(appPrefs.getLastProjectDir());
   if (!dir) {
     return;
   }
@@ -738,6 +739,7 @@ async function onOpenProject(): Promise<void> {
     const { project, warnings } = await loadProject(dir);
     loadedProject.value = project;
     projectDir.value = dir;
+    appPrefs.setLastProjectDir(dir);
     selectionStore.clear();
     clearNodeLocks();
     setDirty(false);
@@ -762,7 +764,7 @@ function openNewProjectDialog(): void {
 }
 
 async function pickNewProjectDirectory(): Promise<void> {
-  const d = await fileService.pickDirectory();
+  const d = await fileService.pickDirectory(appPrefs.getLastProjectDir());
   if (!d) {
     return;
   }
@@ -801,6 +803,7 @@ async function confirmNewProject(): Promise<void> {
     await saveProject(w.dir, proj);
     loadedProject.value = proj;
     projectDir.value = w.dir;
+    appPrefs.setLastProjectDir(w.dir);
     selectionStore.clear();
     clearNodeLocks();
     setDirty(false);

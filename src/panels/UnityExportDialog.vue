@@ -3,9 +3,9 @@ import { confirm, message } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { computed, ref, watch } from "vue";
 import * as fileService from "../core/fileService";
+import * as appPrefs from "../core/appPrefs";
 import {
   formatValidationErrors,
-  joinProjectPath,
   saveProject,
   validate,
 } from "../core/project";
@@ -57,6 +57,8 @@ watch(
       step.value = "edit";
       successPath.value = "";
       syncFormFromProject();
+      // 恢复上次选择的导出路径
+      exportTargetPath.value = appPrefs.getLastUnityExportPath() ?? null;
     }
   },
 );
@@ -71,8 +73,18 @@ function close(): void {
 
 async function pickLocation(): Promise<void> {
   const stem = safeFileStem(props.project.meta.name);
-  const suggested = joinProjectPath(props.projectDir, `${stem}_LwbUiImport.cs`);
-  const p = await fileService.pickSaveCsFile(suggested);
+  const lastPath = appPrefs.getLastUnityExportPath();
+  // 有历史导出路径：取其父目录 + 当前项目建议文件名
+  // 无历史路径：不指定默认路径，由 OS 决定初始目录（不回退到项目目录，保持与"打开项目"对话框独立）
+  let defaultPath: string | undefined;
+  if (lastPath) {
+    const sep = lastPath.includes("\\") ? "\\" : "/";
+    const lastDir = lastPath.substring(0, lastPath.lastIndexOf(sep));
+    if (lastDir) {
+      defaultPath = `${lastDir}${sep}${stem}_LwbUiImport.cs`;
+    }
+  }
+  const p = await fileService.pickSaveCsFile(defaultPath);
   exportTargetPath.value = p;
 }
 
@@ -130,6 +142,7 @@ async function runExport(): Promise<void> {
 
   const cs = generateUnityScript(props.project, props.project.export, props.projectDir);
   await fileService.writeText(target, cs);
+  appPrefs.setLastUnityExportPath(target);
 
   successPath.value = target;
   step.value = "success";

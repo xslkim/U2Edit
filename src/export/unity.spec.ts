@@ -63,10 +63,16 @@ describe("T3.1 Unity C# 生成器", () => {
     };
     const cs = generateUnityScript(project, minimalExport, "D:\\p1\\assets");
     expect(cs).toContain("[MenuItem(");
-    expect(cs).toContain("SourceAssetsAbs");
+    expect(cs).toContain("SourceProjectDir");
     expect(cs).toContain('@"D:\\p1\\assets"');
     expect(cs).toContain("static void LwbCopyOne(");
     expect(cs).toMatch(/LwbCopyOne\(\s*@"/);
+    // 目标路径通过 Application.dataPath 转换为绝对路径
+    expect(cs).toContain("Application.dataPath");
+    expect(cs).toContain("_assetRootAbs");
+    // 源文件不存在时输出警告而非静默跳过
+    expect(cs).toContain("Debug.LogWarning");
+    expect(cs).toContain("Path.GetFullPath");
     expect(cs).toContain("CanvasScaler");
     expect(cs).toContain("LwbApplyRect(");
     expect(cs).toContain("LwbApplyRect(rt_4, 100f, 200f");
@@ -74,6 +80,8 @@ describe("T3.1 Unity C# 生成器", () => {
     expect(cs).toContain('new GameObject("Fill Area")');
     expect(cs).toContain('new GameObject("Handle Slide Area")');
     expect(cs).toContain("TextureImporterType.Sprite");
+    expect(cs).toContain("SpriteImportMode.Single");
+    expect(cs).toContain("LoadAllAssetsAtPath");
     expect(cs).toContain("PrefabUtility.SaveAsPrefabAsset");
     expect(cs).toContain('case "tex1": return "img/a.png"');
   });

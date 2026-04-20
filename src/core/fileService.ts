@@ -3,12 +3,14 @@ import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-f
 
 /**
  * 打开目录选择对话框，返回绝对路径或取消时为 null。
+ * @param defaultPath 对话框初始打开的目录（留空则由 OS 决定）
  */
-export async function pickDirectory(): Promise<string | null> {
+export async function pickDirectory(defaultPath?: string): Promise<string | null> {
   const selected = await open({
     directory: true,
     multiple: false,
     title: "选择目录",
+    defaultPath,
   });
   if (selected === null) return null;
   return Array.isArray(selected) ? (selected[0] ?? null) : selected;
